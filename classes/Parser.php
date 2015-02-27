@@ -64,19 +64,17 @@ class Parser {
 	protected function parseField($rule) {
 		$type = $this->findType($this->tokenizer->next());
 		$field = $this->tokenizer->next();
-		$this->tokenizer->assertNext("=");
-		$number = $this->tokenizer->next();
 	
 		$_type = implode('.', $this->types);
-		$this->proto['messages'][$_type]['fields'][$field] = array(
-			'type' => $type,
-			'rule' => $rule,
-			'number' => $number,
-		);
-	
+		$number = NULL;
+		$default = NULL;
+		
 		$token = $this->tokenizer->next();
 		switch ($token) {
 			case ';':
+				break;
+			case '=':
+				$number = $this->tokenizer->next();
 				break;
 			case '[':
 				$token = $this->tokenizer->next();
@@ -86,7 +84,6 @@ class Parser {
 					case 'default':
 						$this->tokenizer->assertNext("=");
 						$default = $this->tokenizer->next();
-						$this->proto['messages'][$_type]['fields'][$field]['default'] = $default;
 						$this->tokenizer->assertNext("]");
 						$this->tokenizer->assertNext(";");
 						break;
@@ -97,6 +94,13 @@ class Parser {
 			default:
 				throw new Exception("Unexpected \"{$token}\" at line {$this->tokenizer->getLastLine()} column {$this->tokenizer->getLastColumn()}");
 		}
+		
+		$this->proto['messages'][$_type]['fields'][$field] = array(
+				'type' => $type,
+				'rule' => $rule,
+				'number' => $number,
+				'default' => $default,
+		);
 	}
 
 	protected function parseEnum() {
