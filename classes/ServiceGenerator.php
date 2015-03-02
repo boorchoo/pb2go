@@ -2,11 +2,13 @@
 
 class ServiceGenerator extends BaseGenerator {
 	
+	protected $package;
 	protected $name;
 	protected $service;
 	
-	public function __construct($name, $service) {
+	public function __construct($package, $name, $service) {
 		parent::__construct();
+		$this->package = $package;
 		$this->name = $name;
 		$this->service = $service;
 	}
@@ -20,6 +22,7 @@ SOURCE;
 	}
 	
 	public function generatePHPSource() {
+		$namespace = $this->getPHPNamespace($this->package);
 		$source = <<<SOURCE
 <?php
 
@@ -28,7 +31,7 @@ SOURCE;
 include '../configs/{$this->name}.php';
 
 spl_autoload_register(function (\$class) {
-    include "../classes/{\$class}.php";
+    include "../classes/" . str_replace('\\\\', '/', \$class) . ".php";
 });
 
 \$methods = array(
@@ -38,9 +41,9 @@ SOURCE;
 				$source .= <<<SOURCE
 
 	'{$rpcName}' => array(
-		'methodClassName' => '{$rpcName}',
-		'requestClassName' => '{$rpc['type']}',
-		'responseClassName' => '{$rpc['returns']}',
+		'methodClassName' => '{$namespace}\\{$rpcName}',
+		'requestClassName' => '{$namespace}\\{$rpc['type']}',
+		'responseClassName' => '{$namespace}\\{$rpc['returns']}',
 	),
 SOURCE;
 			}
@@ -50,32 +53,32 @@ SOURCE;
 );
 
 try {
-	$request = Request::parse(file_get_contents("php://input"));
+	$request = JSONRPC\Request::parse(file_get_contents("php://input"));
 	//$isNotification = NULL === $request->getId();
 
 	if (FALSE === array_key_exists($request->getMethod(), $methods)) {
-		throw new MethodNotFound();
+		throw new JSONRPC\MethodNotFound();
 	}
 	
 	try {
 		$params = $methods[$request->getMethod()]['requestClassName']::fromStdClass($request->getParams());
 	} catch (Exception $e) {
-		throw new InvalidParams($e);
+		throw new JSONRPC\InvalidParams($e);
 	}
 	
 	try {
 		$method = new $methods[$request->getMethod()]['methodClassName']();
 		$result = $method->invoke($params)->toStdClass();
 	} catch (Exception $e) {
-		throw new InternalError($e);
+		throw new JSONRPC\InternalError($e);
 	}
 
-	$response = new Response();
+	$response = new JSONRPC\Response();
 	$response->setResult($result);
 	$response->setId($request->getId());
 } catch (Exception $e) {
-	$response = new Response();
-	$response->setError(new Response_Error($e->getCode(), $e->getMessage(), NULL));
+	$response = new JSONRPC\Response();
+	$response->setError(new JSONRPC\Response_Error($e->getCode(), $e->getMessage(), NULL));
 	$response->setId(isset($request) ? $request->getId() : NULL);
 }
 
@@ -99,6 +102,8 @@ SOURCE;
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
 
+namespace JSONRPC;
+
 abstract class Method {
 
 	public function __construct() {
@@ -118,6 +123,8 @@ SOURCE;
 <?php
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
 
 class Request {
 
@@ -170,7 +177,7 @@ class Request {
 	}
 
 	public function toStdClass() {
-		$value = new stdClass();
+		$value = new \stdClass();
 		$value->jsonrpc = $this->getJsonrpc();
 		$value->method = $this->getMethod();
 		if ($this->hasParams()) {
@@ -235,6 +242,8 @@ SOURCE;
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
 
+namespace JSONRPC;
+
 class Response {
 
 	protected $jsonrpc = '2.0';
@@ -286,7 +295,7 @@ class Response {
 	}
 
 	public function toStdClass() {
-		$value = new stdClass();
+		$value = new \stdClass();
 		$value->jsonrpc = $this->getJsonrpc();
 		if ($this->hasError()) {
 			$value->error = $this->getError()->toStdClass();
@@ -335,6 +344,8 @@ SOURCE;
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
 
+namespace JSONRPC;
+
 class Response_Error {
 
 	protected $code = NULL;
@@ -376,7 +387,7 @@ class Response_Error {
 	}
 
 	public function toStdClass() {
-		$value = new stdClass();
+		$value = new \stdClass();
 		$value->code = $this->getCode();
 		$value->message = $this->getMessage();
 		if ($this->hasData()) {
@@ -420,6 +431,8 @@ SOURCE;
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
 
+namespace JSONRPC;
+
 class ParseError extends Exception {
 
 	public function __construct(Exception $previous = NULL) {
@@ -438,6 +451,8 @@ SOURCE;
 <?php
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
 
 class InvalidRequest extends Exception {
 
@@ -458,6 +473,8 @@ SOURCE;
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
 
+namespace JSONRPC;
+
 class MethodNotFound extends Exception {
 
 	public function __construct(Exception $previous = NULL) {
@@ -476,6 +493,8 @@ SOURCE;
 <?php
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
 
 class InvalidParams extends Exception {
 
@@ -496,6 +515,8 @@ SOURCE;
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
 
+namespace JSONRPC;
+
 class InternalError extends Exception {
 
 	public function __construct(Exception $previous = NULL) {
@@ -515,6 +536,8 @@ SOURCE;
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
 
+namespace JSONRPC;
+
 class ServerError extends Exception {
 
 	public function __construct($message = NULL, $code = NULL, Exception $previous = NULL) {
@@ -533,6 +556,8 @@ SOURCE;
 <?php
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
 
 class InvalidProtocolBufferException extends Exception {
 
@@ -554,6 +579,8 @@ SOURCE;
 <?php
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
 
 class UninitializedMessageException extends Exception {
 

@@ -2,13 +2,15 @@
 
 class MessageGenerator extends BaseGenerator {
 	
+	protected $package;
 	protected $type;
 	protected $message;
 	
 	protected $className;
 	
-	public function __construct($type, $message) {
+	public function __construct($package, $type, $message) {
 		parent::__construct();
+		$this->package = $package;
 		$this->type = $type;
 		$this->message = $message;
 	}
@@ -24,6 +26,9 @@ class MessageGenerator extends BaseGenerator {
 	}
 	
 	protected function getFieldDefaultValuePHPSource($field) {
+		if (is_null($field['default'])) {
+			return 'NULL';
+		}
 		switch ($field['type']) {
 			case 'int32':
 				$source = "{$field['default']}";
@@ -56,11 +61,14 @@ class MessageGenerator extends BaseGenerator {
 	}
 
 	public function generatePHPClassSource() {
+		$namespace = $this->getPHPNamespace($this->package);
 		$class = str_replace('.', '_', $this->type);
 		$source = <<<SOURCE
 <?php
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace {$namespace};
 
 class {$class} {
 
@@ -166,7 +174,7 @@ SOURCE;
 	}
 
 	public function toStdClass(\$includeAllFields = FALSE) {
-		\$value = new stdClass();
+		\$value = new \stdClass();
 SOURCE;
 		foreach ($this->message['fields'] as $name => $field) {
 			$methodName = $this->toCamelCase($name);
@@ -338,7 +346,7 @@ SOURCE;
 	this.get{$methodName} = function() {
 
 SOURCE;
-					$source .= array_key_exists('default', $field) ?
+					$source .= !is_null($field['default']) ?
 						"		return this.has{$methodName}() ? {$name} : " . $this->getFieldDefaultValueJavaScriptSource($field) . ";\n" : "		return {$name};\n";
 					$source .= <<<SOURCE
 	};

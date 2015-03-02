@@ -30,5 +30,13 @@ abstract class BaseGenerator {
 	public function getPHPType($protocolBuffersType) {
 		return isset(self::$phpTypeMapping[$protocolBuffersType]) ? self::$phpTypeMapping[$protocolBuffersType] : NULL;
 	}
+	
+	public function getPHPNamespace($_package) {
+		$packages = explode('.', $_package);
+		foreach ($packages as &$package) {
+			$package = $this->toCamelCase($package);
+		}
+		return implode('\\', $packages);
+	}
 
 }
