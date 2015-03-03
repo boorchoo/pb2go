@@ -34,65 +34,117 @@ spl_autoload_register(function (\$class) {
     include "../classes/" . str_replace('\\\\', '/', \$class) . ".php";
 });
 
-\$methods = array(
+\$service = new {$namespace}\\{$this->name}();
+\$service->run();
+
+SOURCE;
+
+		return $source;
+	}
+	
+	public function generatePHPClassSource() {
+		$namespace = $this->getPHPNamespace($this->package);
+		$source = <<<SOURCE
+<?php
+
+namespace {$namespace};
+
+class {$this->name} extends \JSONRPC\Service {
+
+	public function __construct() {
+		parent::__construct();
 SOURCE;
 		if (!empty($this->service['rpcs'])) {
 			foreach ($this->service['rpcs'] as $rpcName => $rpc) {
 				$source .= <<<SOURCE
 
-	'{$rpcName}' => array(
-		'methodClassName' => '{$namespace}\\{$rpcName}',
-		'requestClassName' => '{$namespace}\\{$rpc['type']}',
-		'responseClassName' => '{$namespace}\\{$rpc['returns']}',
-	),
+		\$this->registerMethod('{$rpcName}', '{$namespace}\\{$rpcName}', '{$namespace}\\{$rpc['type']}', '{$namespace}\\{$rpc['returns']}');
 SOURCE;
 			}
 			$source .= "\n";
 		}
 		$source .= <<<'SOURCE'
-);
-
-try {
-	$request = JSONRPC\Request::parse(file_get_contents("php://input"));
-	//$isNotification = NULL === $request->getId();
-
-	if (FALSE === array_key_exists($request->getMethod(), $methods)) {
-		throw new JSONRPC\MethodNotFound();
-	}
-	
-	try {
-		$params = $methods[$request->getMethod()]['requestClassName']::fromStdClass($request->getParams());
-	} catch (Exception $e) {
-		throw new JSONRPC\InvalidParams($e);
-	}
-	
-	try {
-		$method = new $methods[$request->getMethod()]['methodClassName']();
-		$result = $method->invoke($params)->toStdClass();
-	} catch (Exception $e) {
-		throw new JSONRPC\InternalError($e);
 	}
 
-	$response = new JSONRPC\Response();
-	$response->setResult($result);
-	$response->setId($request->getId());
-} catch (Exception $e) {
-	$response = new JSONRPC\Response();
-	$response->setError(new JSONRPC\Response_Error($e->getCode(), $e->getMessage(), NULL));
-	$response->setId(isset($request) ? $request->getId() : NULL);
-}
-
-$jsonp = filter_input(INPUT_GET, 'jsonp');
-if (empty($jsonp)) {
-	header('Content-Type: application/json');
-	echo $response->serialize();
-} else {
-	header('Content-Type: application/javascript');
-	echo "{$jsonp}({$response->serialize()});";
 }
 
 SOURCE;
+	
+		return $source;
+	}
+	
+	public function generatePHPServiceClassSource() {
+		$source = <<<'SOURCE'
+<?php
 
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
+
+class Service {
+
+	protected $methods;
+
+	protected function __construct() {
+		$this->methods = array();
+	}
+
+	public function registerMethod($methodName, $methodClassName, $requestClassName, $responseClassName) {
+		$this->methods[$methodName] = array(
+			'methodClassName' => $methodClassName,
+			'requestClassName' => $requestClassName,
+			'responseClassName' => $responseClassName,
+		);
+		return TRUE;
+	}
+
+	public function run() {
+		try {
+			$request = Request::parse(file_get_contents("php://input"));
+			//$isNotification = NULL === $request->getId();
+
+			if (FALSE === array_key_exists($request->getMethod(), $this->methods)) {
+				throw new MethodNotFound();
+			}
+
+			try {
+				$requestClassName = $this->methods[$request->getMethod()]['requestClassName'];
+				$params = $requestClassName::fromStdClass($request->getParams());
+			} catch (Exception $e) {
+				throw new InvalidParams($e);
+			}
+
+			try {
+				$methodClassName = $this->methods[$request->getMethod()]['methodClassName'];
+				$method = new $methodClassName();
+				$result = $method->invoke($params)->toStdClass();
+			} catch (Exception $e) {
+				throw new InternalError($e);
+			}
+
+			$response = new Response();
+			$response->setResult($result);
+			$response->setId($request->getId());
+		} catch (Exception $e) {
+			$response = new Response();
+			$response->setError(new Response_Error($e->getCode(), $e->getMessage(), NULL));
+			$response->setId(isset($request) ? $request->getId() : NULL);
+		}
+
+		$jsonp = filter_input(INPUT_GET, 'jsonp');
+		if (empty($jsonp)) {
+			header('Content-Type: application/json');
+			echo $response->serialize();
+		} else {
+			header('Content-Type: application/javascript');
+			echo "{$jsonp}({$response->serialize()});";
+		}
+	}
+
+}
+
+SOURCE;
+	
 		return $source;
 	}
 	

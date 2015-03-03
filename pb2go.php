@@ -174,6 +174,8 @@ $javaScriptSource .= $serviceGenerator->generateJavaScriptRequestClassSource();
 $javaScriptSource .= $serviceGenerator->generateJavaScriptResponseClassSource();
 
 if (empty($_mode) || $_mode == 'php-service') {
+	output("{$path}/classes/JSONRPC/Service.php", $serviceGenerator->generatePHPServiceClassSource());
+	
 	output("{$path}/classes/JSONRPC/Method.php", $serviceGenerator->generatePHPMethodClassSource());
 
 	output("{$path}/classes/JSONRPC/Request.php", $serviceGenerator->generatePHPRequestClassSource());
@@ -204,6 +206,7 @@ output("{$path}/public/{$proto['package']}.html", $serviceGenerator->generateHTM
 foreach ($proto['services'] as $serviceName => $service) {
 	$serviceGenerator = new ServiceGenerator($proto['package'], $serviceName, $service);
 	if (empty($_mode) || $_mode == 'php-service') {
+		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}.php", $serviceGenerator->generatePHPClassSource(), FALSE);
 		output("{$path}/configs/{$serviceName}.php", $serviceGenerator->generatePHPConfigSource(), FALSE);
 		output("{$path}/public/{$serviceName}.php", $serviceGenerator->generatePHPSource());
 	}
