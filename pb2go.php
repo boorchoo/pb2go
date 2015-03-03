@@ -170,8 +170,7 @@ foreach ($proto['enums'] as $type => $enum) {
 }
 
 $serviceGenerator = new ServiceGenerator($proto['package'], NULL, NULL);
-$javaScriptSource .= $serviceGenerator->generateJavaScriptRequestClassSource();
-$javaScriptSource .= $serviceGenerator->generateJavaScriptResponseClassSource();
+$javaScriptSource .= $serviceGenerator->generateJavaScriptJSONRPCSource();
 
 if (empty($_mode) || $_mode == 'php-service') {
 	output("{$path}/classes/JSONRPC/Service.php", $serviceGenerator->generatePHPServiceClassSource());

@@ -702,7 +702,7 @@ SOURCE;
 			if (xhr.readyState === 4) {
 				if (xhr.status === 200) {
 					console.log(xhr.responseText);
-					var response = Response.parse(xhr.responseText);
+					var response = JSONRPC.Response.parse(xhr.responseText);
 					if (response.hasError()) {
 						errorHandler(response.getError());
 					} else {
@@ -719,7 +719,7 @@ SOURCE;
 		foreach ($this->service['rpcs'] as $rpcName => $rpc) {
 			$source .= <<<SOURCE
 	this.{$rpcName} = function(params, resultHandler, errorHandler) {
-		var request = new Request();
+		var request = new JSONRPC.Request();
 		request.setMethod('$rpcName');
 		request.setParams(params.toObject());
 		request.setId(getId());
@@ -738,251 +738,249 @@ SOURCE;
 		return $source;
 	}
 	
-	public function generateJavaScriptRequestClassSource() {
+	public function generateJavaScriptJSONRPCSource() {
 		$source = <<<'SOURCE'
 
-Request = function() {
-	var jsonrpc = '2.0';
-	var method = null;
-	var params = null;
-	var id = null;
-
-	this.getJsonrpc = function() {
-		return jsonrpc;
-	};
-
-	this.setJsonrpc = function(value) {
-		jsonrpc = value;
-	};
-
-	this.getMethod = function() {
-		return method;
-	};
-
-	this.setMethod = function(value) {
-		method = value;
-	};
-
-	this.hasParams = function() {
-		return null !== params;
-	};
-
-	this.getParams = function() {
-		return params;
-	};
-
-	this.setParams = function(value) {
-		params = value;
-	};
-
-	this.hasId = function() {
-		return null !== id;
-	};
-
-	this.getId = function() {
-		return id;
-	};
-
-	this.setId = function(value) {
-		id = value;
-	};
-
-	this.toObject = function() {
-		var value = new Object();
-		value.jsonrpc = this.getJsonrpc();
-		value.method = this.getMethod();
-		if (this.hasParams()) {
-			value.params = this.getParams();
-		}
-		if (this.hasId()) {
-			value.id = this.getId();
-		}
-		return value;
-	};
-
-	this.serialize = function() {
-		return JSON.stringify(this.toObject());
-	};
-};
-
-Request.fromObject = function(value) {
-	var object = new Request();
-	if (typeof value.jsonrpc !== 'undefined') {
-		object.setJsonrpc(value.jsonrpc);
-	}
-	if (typeof value.method !== 'undefined') {
-		object.setMethod(value.method);
-	}
-	if (typeof value.params !== 'undefined') {
-		object.setParams(value.params);
-	}
-	if (typeof value.id !== 'undefined') {
-		object.setId(value.id);
-	}
-	return object;
-};
-
-Request.parse = function(value) {
-	return Request.fromObject(JSON.parse(value));
-};
-
-SOURCE;
-		
-		return $source;
-	}
+var JSONRPC = (function (JSONRPC) {
+	Request = function() {
+		var jsonrpc = '2.0';
+		var method = null;
+		var params = null;
+		var id = null;
 	
-	public function generateJavaScriptResponseClassSource() {
-		$source = <<<'SOURCE'
-
-Response = function() {
-	var jsonrpc = '2.0';
-	var result = null;
-	var error = null;
-	var id = null;
-
-	this.getJsonrpc = function() {
-		return jsonrpc;
+		this.getJsonrpc = function() {
+			return jsonrpc;
+		};
+	
+		this.setJsonrpc = function(value) {
+			jsonrpc = value;
+		};
+	
+		this.getMethod = function() {
+			return method;
+		};
+	
+		this.setMethod = function(value) {
+			method = value;
+		};
+	
+		this.hasParams = function() {
+			return null !== params;
+		};
+	
+		this.getParams = function() {
+			return params;
+		};
+	
+		this.setParams = function(value) {
+			params = value;
+		};
+	
+		this.hasId = function() {
+			return null !== id;
+		};
+	
+		this.getId = function() {
+			return id;
+		};
+	
+		this.setId = function(value) {
+			id = value;
+		};
+	
+		this.toObject = function() {
+			var value = new Object();
+			value.jsonrpc = this.getJsonrpc();
+			value.method = this.getMethod();
+			if (this.hasParams()) {
+				value.params = this.getParams();
+			}
+			if (this.hasId()) {
+				value.id = this.getId();
+			}
+			return value;
+		};
+	
+		this.serialize = function() {
+			return JSON.stringify(this.toObject());
+		};
 	};
-
-	this.setJsonrpc = function(value) {
-		jsonrpc = value;
-	};
-
-	this.hasResult = function() {
-		return null !== result;
-	};
-
-	this.getResult = function() {
-		return result;
-	};
-
-	this.setResult = function(value) {
-		result = value;
-	};
-
-	this.hasError = function() {
-		return null !== error;
-	};
-
-	this.getError = function() {
-		return error;
-	};
-
-	this.setError = function(value) {
-		error = value;
-	};
-
-	this.getId = function() {
-		return id;
-	};
-
-	this.setId = function(value) {
-		id = value;
-	};
-
-	this.toObject = function() {
-		var value = new Object();
-		value.jsonrpc = this.getJsonrpc();
-		if (this.hasError()) {
-			value.error = this.getError();
-		} else {
-			value.result = this.getResult();
+	
+	Request.fromObject = function(value) {
+		var object = new Request();
+		if (typeof value.jsonrpc !== 'undefined') {
+			object.setJsonrpc(value.jsonrpc);
 		}
-		value.id = this.getId();
-		return value;
-	};
-
-	this.serialize = function() {
-		return JSON.stringify(this.toObject());
-	};
-};
-
-Response.fromObject = function(value) {
-	var object = new Response();
-	if (typeof value.jsonrpc !== 'undefined') {
-		object.setJsonrpc(value.jsonrpc);
-	}
-	if (typeof value.result !== 'undefined') {
-		object.setResult(value.result);
-	}
-	if (typeof value.error !== 'undefined') {
-		object.setError(Response.Error.fromObject(value.error));
-	}
-	if (typeof value.id !== 'undefined') {
-		object.setId(value.id);
-	}
-	return object;
-};
-
-Response.parse = function(value) {
-	return Response.fromObject(JSON.parse(value));
-};
-
-Response.Error = function() {
-	var code = null;
-	var message = null;
-	var data = null;
-
-	this.getCode = function () {
-		return code;
-	};
-
-	this.setCode = function(value) {
-		code = value;
-	};
-
-	this.getMessage = function() {
-		return message;
-	};
-
-	this.setMessage = function(value) {
-		message = value;
-	};
-
-	this.hasData = function() {
-		return null !== data;
-	};
-
-	this.getData = function() {
-		return data;
-	};
-
-	this.setData = function(value) {
-		data = value;
-	};
-
-	this.toObject = function() {
-		var value = new Object();
-		value.code = this.getCode();
-		value.message = this.getMessage();
-		if (this.hasData()) {
-			value.data = this.getData();
+		if (typeof value.method !== 'undefined') {
+			object.setMethod(value.method);
 		}
-		return value;
+		if (typeof value.params !== 'undefined') {
+			object.setParams(value.params);
+		}
+		if (typeof value.id !== 'undefined') {
+			object.setId(value.id);
+		}
+		return object;
+	};
+	
+	Request.parse = function(value) {
+		return Request.fromObject(JSON.parse(value));
 	};
 
-	this.serialize = function() {
-		return JSON.stringify(this.toObject());
+	Response = function() {
+		var jsonrpc = '2.0';
+		var result = null;
+		var error = null;
+		var id = null;
+	
+		this.getJsonrpc = function() {
+			return jsonrpc;
+		};
+	
+		this.setJsonrpc = function(value) {
+			jsonrpc = value;
+		};
+	
+		this.hasResult = function() {
+			return null !== result;
+		};
+	
+		this.getResult = function() {
+			return result;
+		};
+	
+		this.setResult = function(value) {
+			result = value;
+		};
+	
+		this.hasError = function() {
+			return null !== error;
+		};
+	
+		this.getError = function() {
+			return error;
+		};
+	
+		this.setError = function(value) {
+			error = value;
+		};
+	
+		this.getId = function() {
+			return id;
+		};
+	
+		this.setId = function(value) {
+			id = value;
+		};
+	
+		this.toObject = function() {
+			var value = new Object();
+			value.jsonrpc = this.getJsonrpc();
+			if (this.hasError()) {
+				value.error = this.getError();
+			} else {
+				value.result = this.getResult();
+			}
+			value.id = this.getId();
+			return value;
+		};
+	
+		this.serialize = function() {
+			return JSON.stringify(this.toObject());
+		};
 	};
-};
+	
+	Response.fromObject = function(value) {
+		var object = new Response();
+		if (typeof value.jsonrpc !== 'undefined') {
+			object.setJsonrpc(value.jsonrpc);
+		}
+		if (typeof value.result !== 'undefined') {
+			object.setResult(value.result);
+		}
+		if (typeof value.error !== 'undefined') {
+			object.setError(Response.Error.fromObject(value.error));
+		}
+		if (typeof value.id !== 'undefined') {
+			object.setId(value.id);
+		}
+		return object;
+	};
+	
+	Response.parse = function(value) {
+		return Response.fromObject(JSON.parse(value));
+	};
+	
+	Response.Error = function() {
+		var code = null;
+		var message = null;
+		var data = null;
+	
+		this.getCode = function () {
+			return code;
+		};
+	
+		this.setCode = function(value) {
+			code = value;
+		};
+	
+		this.getMessage = function() {
+			return message;
+		};
+	
+		this.setMessage = function(value) {
+			message = value;
+		};
+	
+		this.hasData = function() {
+			return null !== data;
+		};
+	
+		this.getData = function() {
+			return data;
+		};
+	
+		this.setData = function(value) {
+			data = value;
+		};
+	
+		this.toObject = function() {
+			var value = new Object();
+			value.code = this.getCode();
+			value.message = this.getMessage();
+			if (this.hasData()) {
+				value.data = this.getData();
+			}
+			return value;
+		};
+	
+		this.serialize = function() {
+			return JSON.stringify(this.toObject());
+		};
+	};
+	
+	Response.Error.fromObject = function(value) {
+		var object = new Response.Error();
+		if (typeof value.code !== 'undefined') {
+			object.setCode(value.code);
+		}
+		if (typeof value.message !== 'undefined') {
+			object.setMessage(value.message);
+		}
+		if (typeof value.data !== 'undefined') {
+			object.setData(value.data);
+		}
+		return object;
+	};
+	
+	Response.Error.parse = function(value) {
+		return Response.Error.fromObject(JSON.parse(value));
+	};
 
-Response.Error.fromObject = function(value) {
-	var object = new Response.Error();
-	if (typeof value.code !== 'undefined') {
-		object.setCode(value.code);
-	}
-	if (typeof value.message !== 'undefined') {
-		object.setMessage(value.message);
-	}
-	if (typeof value.data !== 'undefined') {
-		object.setData(value.data);
-	}
-	return object;
-};
-
-Response.Error.parse = function(value) {
-	return Response.Error.fromObject(JSON.parse(value));
-};
+	JSONRPC.Request = Request;
+	JSONRPC.Response = Response;
+	return JSONRPC;
+}(JSONRPC || {}));
 
 SOURCE;
 		
