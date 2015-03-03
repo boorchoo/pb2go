@@ -694,26 +694,6 @@ SOURCE;
 		return id;
 	};
 
-	send = function(data, resultHandler, errorHandler) {
-		console.log(data);
-		var xhr = new XMLHttpRequest();
-		xhr.open('POST', '/{$this->name}.php', true);
-		xhr.onreadystatechange = function () {
-			if (xhr.readyState === 4) {
-				if (xhr.status === 200) {
-					console.log(xhr.responseText);
-					var response = JSONRPC.Response.parse(xhr.responseText);
-					if (response.hasError()) {
-						errorHandler(response.getError());
-					} else {
-						resultHandler(response.getResult());
-					}
-				}
-			}
-		};
-		xhr.send(data);
-	};
-
 
 SOURCE;
 		foreach ($this->service['rpcs'] as $rpcName => $rpc) {
@@ -723,9 +703,20 @@ SOURCE;
 		request.setMethod('$rpcName');
 		request.setParams(params.toObject());
 		request.setId(getId());
-		send(request.serialize(), function(result) {
-			resultHandler({$rpc['returns']}.fromObject(result));
-		}, errorHandler);
+		JSONRPC.send('/{$this->name}.php', request.serialize(),
+			function(result) {
+				if (typeof resultHandler === 'undefined') {
+					return;
+				}
+				resultHandler({$rpc['returns']}.fromObject(result));
+			},
+			function(error) {
+				if (typeof errorHandler === 'undefined') {
+					return;
+				}
+				errorHandler(error);
+			}
+		);
 	};
 
 SOURCE;
@@ -747,47 +738,47 @@ var JSONRPC = (function (JSONRPC) {
 		var method = null;
 		var params = null;
 		var id = null;
-	
+
 		this.getJsonrpc = function() {
 			return jsonrpc;
 		};
-	
+
 		this.setJsonrpc = function(value) {
 			jsonrpc = value;
 		};
-	
+
 		this.getMethod = function() {
 			return method;
 		};
-	
+
 		this.setMethod = function(value) {
 			method = value;
 		};
-	
+
 		this.hasParams = function() {
 			return null !== params;
 		};
-	
+
 		this.getParams = function() {
 			return params;
 		};
-	
+
 		this.setParams = function(value) {
 			params = value;
 		};
-	
+
 		this.hasId = function() {
 			return null !== id;
 		};
-	
+
 		this.getId = function() {
 			return id;
 		};
-	
+
 		this.setId = function(value) {
 			id = value;
 		};
-	
+
 		this.toObject = function() {
 			var value = new Object();
 			value.jsonrpc = this.getJsonrpc();
@@ -800,12 +791,12 @@ var JSONRPC = (function (JSONRPC) {
 			}
 			return value;
 		};
-	
+
 		this.serialize = function() {
 			return JSON.stringify(this.toObject());
 		};
 	};
-	
+
 	Request.fromObject = function(value) {
 		var object = new Request();
 		if (typeof value.jsonrpc !== 'undefined') {
@@ -822,7 +813,7 @@ var JSONRPC = (function (JSONRPC) {
 		}
 		return object;
 	};
-	
+
 	Request.parse = function(value) {
 		return Request.fromObject(JSON.parse(value));
 	};
@@ -832,47 +823,47 @@ var JSONRPC = (function (JSONRPC) {
 		var result = null;
 		var error = null;
 		var id = null;
-	
+
 		this.getJsonrpc = function() {
 			return jsonrpc;
 		};
-	
+
 		this.setJsonrpc = function(value) {
 			jsonrpc = value;
 		};
-	
+
 		this.hasResult = function() {
 			return null !== result;
 		};
-	
+
 		this.getResult = function() {
 			return result;
 		};
-	
+
 		this.setResult = function(value) {
 			result = value;
 		};
-	
+
 		this.hasError = function() {
 			return null !== error;
 		};
-	
+
 		this.getError = function() {
 			return error;
 		};
-	
+
 		this.setError = function(value) {
 			error = value;
 		};
-	
+
 		this.getId = function() {
 			return id;
 		};
-	
+
 		this.setId = function(value) {
 			id = value;
 		};
-	
+
 		this.toObject = function() {
 			var value = new Object();
 			value.jsonrpc = this.getJsonrpc();
@@ -884,12 +875,12 @@ var JSONRPC = (function (JSONRPC) {
 			value.id = this.getId();
 			return value;
 		};
-	
+
 		this.serialize = function() {
 			return JSON.stringify(this.toObject());
 		};
 	};
-	
+
 	Response.fromObject = function(value) {
 		var object = new Response();
 		if (typeof value.jsonrpc !== 'undefined') {
@@ -906,44 +897,44 @@ var JSONRPC = (function (JSONRPC) {
 		}
 		return object;
 	};
-	
+
 	Response.parse = function(value) {
 		return Response.fromObject(JSON.parse(value));
 	};
-	
+
 	Response.Error = function() {
 		var code = null;
 		var message = null;
 		var data = null;
-	
+
 		this.getCode = function () {
 			return code;
 		};
-	
+
 		this.setCode = function(value) {
 			code = value;
 		};
-	
+
 		this.getMessage = function() {
 			return message;
 		};
-	
+
 		this.setMessage = function(value) {
 			message = value;
 		};
-	
+
 		this.hasData = function() {
 			return null !== data;
 		};
-	
+
 		this.getData = function() {
 			return data;
 		};
-	
+
 		this.setData = function(value) {
 			data = value;
 		};
-	
+
 		this.toObject = function() {
 			var value = new Object();
 			value.code = this.getCode();
@@ -953,12 +944,12 @@ var JSONRPC = (function (JSONRPC) {
 			}
 			return value;
 		};
-	
+
 		this.serialize = function() {
 			return JSON.stringify(this.toObject());
 		};
 	};
-	
+
 	Response.Error.fromObject = function(value) {
 		var object = new Response.Error();
 		if (typeof value.code !== 'undefined') {
@@ -972,13 +963,34 @@ var JSONRPC = (function (JSONRPC) {
 		}
 		return object;
 	};
-	
+
 	Response.Error.parse = function(value) {
 		return Response.Error.fromObject(JSON.parse(value));
 	};
 
 	JSONRPC.Request = Request;
 	JSONRPC.Response = Response;
+
+	JSONRPC.send = function(url, data, resultHandler, errorHandler) {
+		console.log(data);
+		var xhr = new XMLHttpRequest();
+		xhr.open('POST', url, true);
+		xhr.onreadystatechange = function () {
+			if (xhr.readyState === 4) {
+				if (xhr.status === 200) {
+					console.log(xhr.responseText);
+					var response = JSONRPC.Response.parse(xhr.responseText);
+					if (response.hasError()) {
+						errorHandler(response.getError());
+					} else {
+						resultHandler(response.getResult());
+					}
+				}
+			}
+		};
+		xhr.send(data);
+	};
+
 	return JSONRPC;
 }(JSONRPC || {}));
 

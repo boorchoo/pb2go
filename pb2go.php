@@ -153,6 +153,9 @@ foreach ($proto['messages'] as $type => $message) {
 	$types['messages'][$type] = array();
 }
 
+$serviceGenerator = new ServiceGenerator($proto['package'], NULL, NULL);
+$javaScriptSource .= $serviceGenerator->generateJavaScriptJSONRPCSource();
+
 foreach ($proto['messages'] as $type => $message) {
 	$messageGenerator = new MessageGenerator($proto['package'], $type, $message);
 	if (empty($_mode) || $_mode == 'php-service' || $_mode == 'php-client') {
@@ -168,9 +171,6 @@ foreach ($proto['enums'] as $type => $enum) {
 	}
 	$javaScriptSource .= $enumGenerator->generateJavaScriptClassSource();
 }
-
-$serviceGenerator = new ServiceGenerator($proto['package'], NULL, NULL);
-$javaScriptSource .= $serviceGenerator->generateJavaScriptJSONRPCSource();
 
 if (empty($_mode) || $_mode == 'php-service') {
 	output("{$path}/classes/JSONRPC/Service.php", $serviceGenerator->generatePHPServiceClassSource());
