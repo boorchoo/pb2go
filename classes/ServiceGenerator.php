@@ -66,6 +66,10 @@ SOURCE;
 		$source .= <<<'SOURCE'
 	}
 
+	public function authenticate() {
+		return NULL;
+	}
+
 }
 
 SOURCE;
@@ -81,7 +85,7 @@ SOURCE;
 
 namespace JSONRPC;
 
-class Service {
+abstract class Service {
 
 	protected $methods;
 
@@ -98,8 +102,12 @@ class Service {
 		return TRUE;
 	}
 
+	public abstract function authenticate();
+
 	public function run() {
 		try {
+			$client = $this->authenticate();
+
 			$request = Request::parse(file_get_contents("php://input"));
 			//$isNotification = NULL === $request->getId();
 
@@ -110,22 +118,32 @@ class Service {
 			try {
 				$requestClassName = $this->methods[$request->getMethod()]['requestClassName'];
 				$params = $requestClassName::fromStdClass($request->getParams());
-			} catch (Exception $e) {
+			} catch (\Exception $e) {
 				throw new InvalidParams($e);
 			}
 
 			try {
 				$methodClassName = $this->methods[$request->getMethod()]['methodClassName'];
 				$method = new $methodClassName();
-				$result = $method->invoke($params)->toStdClass();
-			} catch (Exception $e) {
+				$authorized = $method->authorize($client, $params);
+			} catch (\Exception $e) {
 				throw new InternalError($e);
+			}
+
+			if ($authorized) {
+				try {
+					$result = $method->invoke($params)->toStdClass();
+				} catch (\Exception $e) {
+					throw new InternalError($e);
+				}
+			} else {
+				throw new InternalError(new \Exception("Not authorized"));
 			}
 
 			$response = new Response();
 			$response->setResult($result);
 			$response->setId($request->getId());
-		} catch (Exception $e) {
+		} catch (\Exception $e) {
 			$response = new Response();
 			$response->setError(new Response_Error($e->getCode(), $e->getMessage(), NULL));
 			$response->setId(isset($request) ? $request->getId() : NULL);
@@ -160,6 +178,8 @@ abstract class Method {
 
 	public function __construct() {
 	}
+
+	public abstract function authorize($client, $params);
 
 	public abstract function invoke($params);
 
@@ -485,9 +505,9 @@ SOURCE;
 
 namespace JSONRPC;
 
-class ParseError extends Exception {
+class ParseError extends \Exception {
 
-	public function __construct(Exception $previous = NULL) {
+	public function __construct(\Exception $previous = NULL) {
 		parent::__construct('Parse error', -32700, $previous);
 	}
 
@@ -506,9 +526,9 @@ SOURCE;
 
 namespace JSONRPC;
 
-class InvalidRequest extends Exception {
+class InvalidRequest extends \Exception {
 
-	public function __construct(Exception $previous = NULL) {
+	public function __construct(\Exception $previous = NULL) {
 		parent::__construct('Invalid Request', -32600, $previous);
 	}
 
@@ -527,9 +547,9 @@ SOURCE;
 
 namespace JSONRPC;
 
-class MethodNotFound extends Exception {
+class MethodNotFound extends \Exception {
 
-	public function __construct(Exception $previous = NULL) {
+	public function __construct(\Exception $previous = NULL) {
 		parent::__construct('Method not found', -32601, $previous);
 	}
 
@@ -548,9 +568,9 @@ SOURCE;
 
 namespace JSONRPC;
 
-class InvalidParams extends Exception {
+class InvalidParams extends \Exception {
 
-	public function __construct(Exception $previous = NULL) {
+	public function __construct(\Exception $previous = NULL) {
 		parent::__construct('Invalid params', -32602, $previous);
 	}
 
@@ -569,9 +589,9 @@ SOURCE;
 
 namespace JSONRPC;
 
-class InternalError extends Exception {
+class InternalError extends \Exception {
 
-	public function __construct(Exception $previous = NULL) {
+	public function __construct(\Exception $previous = NULL) {
 		parent::__construct('Internal error' . ($previous == NULL ? '' : " => {$previous->getMessage()}"), -32603, $previous);
 	}
 
@@ -590,9 +610,9 @@ SOURCE;
 
 namespace JSONRPC;
 
-class ServerError extends Exception {
+class ServerError extends \Exception {
 
-	public function __construct($message = NULL, $code = NULL, Exception $previous = NULL) {
+	public function __construct($message = NULL, $code = NULL, \Exception $previous = NULL) {
 		parent::__construct(is_null($message) ? 'Server error' : $message, is_null($code) ? -32000 : $code, $previous);
 	}
 
@@ -611,11 +631,11 @@ SOURCE;
 
 namespace JSONRPC;
 
-class InvalidProtocolBufferException extends Exception {
+class InvalidProtocolBufferException extends \Exception {
 
 	const CODE = -32001;
 
-	public function __construct(Exception $previous = NULL) {
+	public function __construct(\Exception $previous = NULL) {
 		parent::__construct('Invalid protocol buffer', self::CODE, $previous);
 	}
 
@@ -634,13 +654,13 @@ SOURCE;
 
 namespace JSONRPC;
 
-class UninitializedMessageException extends Exception {
+class UninitializedMessageException extends \Exception {
 
 	const CODE = -32002;
 	
 	protected $missingFields = NULL;
 
-	public function __construct($missingFields = NULL, Exception $previous = NULL) {
+	public function __construct($missingFields = NULL, \Exception $previous = NULL) {
 		parent::__construct('Uninitialized message', self::CODE, $previous);
 		$this->missingFields = $missingFields;
 	}

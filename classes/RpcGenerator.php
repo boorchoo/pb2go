@@ -25,6 +25,10 @@ class {$this->name} extends \JSONRPC\Method {
 	public function __construct() {
 		parent::__construct();
 	}
+	
+	public function authorize(\$client, \$params) {
+		return TRUE;
+	}
 
 	public function invoke(\$params) {
 		\$result = new {$this->rpc['returns']}();
