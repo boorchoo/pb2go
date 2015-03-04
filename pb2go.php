@@ -210,9 +210,9 @@ foreach ($proto['services'] as $serviceName => $service) {
 		output("{$path}/public/{$serviceName}.php", $serviceGenerator->generatePHPSource());
 	}
 	foreach ($service['rpcs'] as $rpcName => $rpc) {
-		$rpcGenerator = new RpcGenerator($proto['package'], $rpcName, $rpc);
+		$rpcGenerator = new RpcGenerator($proto['package'], $serviceName, $rpcName, $rpc);
 		if (empty($_mode) || $_mode == 'php-service') {
-			output("{$path}/classes/" . str_replace('\\', '/', $messageGenerator->getPHPNamespace($proto['package'])) . '/' . "{$rpcName}.php", $rpcGenerator->generatePHPClassSource(), FALSE);
+			output("{$path}/classes/" . str_replace('\\', '/', $messageGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}_{$rpcName}.php", $rpcGenerator->generatePHPClassSource(), FALSE);
 		}
 	}
 	$javaScriptSource .= $serviceGenerator->generateJavaScriptSource();

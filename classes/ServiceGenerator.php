@@ -58,7 +58,7 @@ SOURCE;
 			foreach ($this->service['rpcs'] as $rpcName => $rpc) {
 				$source .= <<<SOURCE
 
-		\$this->registerMethod('{$rpcName}', '{$namespace}\\{$rpcName}', '{$namespace}\\{$rpc['type']}', '{$namespace}\\{$rpc['returns']}');
+		\$this->registerMethod('{$rpcName}', '{$namespace}\\{$this->name}_{$rpcName}', '{$namespace}\\{$rpc['type']}', '{$namespace}\\{$rpc['returns']}');
 SOURCE;
 			}
 			$source .= "\n";
