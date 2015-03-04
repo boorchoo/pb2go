@@ -211,12 +211,12 @@ output("{$path}/public/{$proto['package']}.html", $serviceGenerator->generateHTM
 foreach ($proto['services'] as $serviceName => $service) {
 	$serviceGenerator = new ServiceGenerator($proto['package'], $serviceName, $service);
 	if (empty($_mode) || $_mode == 'php-service') {
-		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}.php", $serviceGenerator->generatePHPClassSource(), FALSE);
+		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}.php", $serviceGenerator->generatePHPClassSource());
 		output("{$path}/configs/{$serviceName}.php", $serviceGenerator->generatePHPConfigSource(), FALSE);
 		output("{$path}/public/{$serviceName}.php", $serviceGenerator->generatePHPSource());
 	}
 	if (empty($_mode) || $_mode == 'php-client') {
-		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}Client.php", $serviceGenerator->generatePHPClientClassSource(), FALSE);
+		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}Client.php", $serviceGenerator->generatePHPClientClassSource());
 	}
 	foreach ($service['rpcs'] as $rpcName => $rpc) {
 		$rpcGenerator = new RpcGenerator($proto['package'], $serviceName, $rpcName, $rpc);

@@ -101,7 +101,8 @@ SOURCE;
 	}
 
 	public function authenticate() {
-		return NULL;
+		$client = NULL;
+		return $client;
 	}
 
 }
@@ -122,15 +123,39 @@ namespace JSONRPC;
 abstract class Client {
 
 	protected $url;
+	protected $headers;
 	protected $id;
 
 	protected function __construct($url) {
 		$this->url = $url;
+		$this->headers = array();
 		$this->id = 0;
 	}
 
 	public function getURL() {
 		return $this->url;
+	}
+
+	public function hasHeader($header) {
+		return isset($this->headers[$header]);
+	}
+
+	public function getHeader($header) {
+		return $this->hasHeader($header) ? $this->headers[$header] : NULL; 
+	}
+
+	public function setHeader($header, $value = NULL) {
+		if ($value === NULL) {
+			$this->clearHeader($header);
+		} else {
+			$this->headers[$header] = $value;
+		}
+	}
+
+	public function clearHeader($header) {
+		if ($this->hasHeader($header)) {
+			unset($this->headers[$header]);
+		}
 	}
 
 	public function getId() {
@@ -152,6 +177,11 @@ abstract class Client {
 		curl_setopt($ch, CURLOPT_POST, 1);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $request->serialize());
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+		$headers = array();
+		foreach ($this->headers as $header => $value) {
+			array_push($headers, "{$header}: {$value}");
+		}
+		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 		$_response = curl_exec($ch);
 		curl_close ($ch);
 
@@ -250,6 +280,16 @@ abstract class Service {
 			header('Content-Type: application/javascript');
 			echo "{$jsonp}({$response->serialize()});";
 		}
+	}
+
+	protected function hasHeader($header) {
+		$headers = getallheaders();
+		return isset($headers[$header]);
+	}
+
+	protected function getHeader($header) {
+		$headers = getallheaders();
+		return isset($headers[$header]) ? $headers[$header] : NULL; 
 	}
 
 }
