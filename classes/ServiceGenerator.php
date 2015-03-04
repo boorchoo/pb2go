@@ -42,6 +42,40 @@ SOURCE;
 		return $source;
 	}
 	
+	public function generatePHPClientClassSource() {
+		$namespace = $this->getPHPNamespace($this->package);
+		$source = <<<SOURCE
+<?php
+	
+namespace {$namespace};
+	
+class {$this->name}Client extends \JSONRPC\Client {
+	
+	public function __construct(\$url) {
+		parent::__construct(\$url);
+	}
+
+SOURCE;
+		if (!empty($this->service['rpcs'])) {
+			foreach ($this->service['rpcs'] as $rpcName => $rpc) {
+				$source .= <<<SOURCE
+
+	public function {$rpcName}(\$params) {
+		return {$rpc['returns']}::fromStdClass(\$this->invoke('{$rpcName}', \$params->toStdClass()));
+	}
+
+SOURCE;
+			}
+		}
+		$source .= <<<'SOURCE'
+
+}
+	
+SOURCE;
+	
+		return $source;
+	}
+	
 	public function generatePHPClassSource() {
 		$namespace = $this->getPHPNamespace($this->package);
 		$source = <<<SOURCE
@@ -74,6 +108,65 @@ SOURCE;
 
 SOURCE;
 	
+		return $source;
+	}
+	
+	public function generatePHPJSONRPCClientClassSource() {
+		$source = <<<'SOURCE'
+<?php
+
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
+
+abstract class Client {
+
+	protected $url;
+	protected $id;
+
+	protected function __construct($url) {
+		$this->url = $url;
+		$this->id = 0;
+	}
+
+	public function getURL() {
+		return $this->url;
+	}
+
+	public function getId() {
+		return ++$this->id;
+	}
+
+	public function getLastId() {
+		return $this->id;
+	}
+
+	protected function invoke($method, $params) {
+		$request = new Request();
+		$request->setMethod($method);
+		$request->setParams($params);
+		$request->setId($this->getId());
+
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $this->url);
+		curl_setopt($ch, CURLOPT_POST, 1);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $request->serialize());
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+		$_response = curl_exec($ch);
+		curl_close ($ch);
+
+		$response = Response::parse($_response);
+		if ($response->hasError()) {
+			$error = $response->getError();
+			throw new \Exception($error->getMessage(), $error->getCode(), NULL);
+		}
+		return $response->getResult();
+	}
+
+}
+
+SOURCE;
+		
 		return $source;
 	}
 	

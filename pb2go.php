@@ -172,11 +172,7 @@ foreach ($proto['enums'] as $type => $enum) {
 	$javaScriptSource .= $enumGenerator->generateJavaScriptClassSource();
 }
 
-if (empty($_mode) || $_mode == 'php-service') {
-	output("{$path}/classes/JSONRPC/Service.php", $serviceGenerator->generatePHPServiceClassSource());
-	
-	output("{$path}/classes/JSONRPC/Method.php", $serviceGenerator->generatePHPMethodClassSource());
-
+if (empty($_mode) || $_mode == 'php-service' || $_mode == 'php-client') {
 	output("{$path}/classes/JSONRPC/Request.php", $serviceGenerator->generatePHPRequestClassSource());
 
 	output("{$path}/classes/JSONRPC/Response.php", $serviceGenerator->generatePHPResponseClassSource());
@@ -200,6 +196,16 @@ if (empty($_mode) || $_mode == 'php-service') {
 	output("{$path}/classes/JSONRPC/UninitializedMessageException.php", $serviceGenerator->generatePHPUninitializedMessageExceptionClassSource());
 }
 
+if (empty($_mode) || $_mode == 'php-service') {
+	output("{$path}/classes/JSONRPC/Service.php", $serviceGenerator->generatePHPServiceClassSource());
+	
+	output("{$path}/classes/JSONRPC/Method.php", $serviceGenerator->generatePHPMethodClassSource());
+}
+
+if (empty($_mode) || $_mode == 'php-client') {
+	output("{$path}/classes/JSONRPC/Client.php", $serviceGenerator->generatePHPJSONRPCClientClassSource());
+}
+
 output("{$path}/public/{$proto['package']}.html", $serviceGenerator->generateHTMLSource($proto['package']));
 
 foreach ($proto['services'] as $serviceName => $service) {
@@ -208,6 +214,9 @@ foreach ($proto['services'] as $serviceName => $service) {
 		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}.php", $serviceGenerator->generatePHPClassSource(), FALSE);
 		output("{$path}/configs/{$serviceName}.php", $serviceGenerator->generatePHPConfigSource(), FALSE);
 		output("{$path}/public/{$serviceName}.php", $serviceGenerator->generatePHPSource());
+	}
+	if (empty($_mode) || $_mode == 'php-client') {
+		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}Client.php", $serviceGenerator->generatePHPClientClassSource(), FALSE);
 	}
 	foreach ($service['rpcs'] as $rpcName => $rpc) {
 		$rpcGenerator = new RpcGenerator($proto['package'], $serviceName, $rpcName, $rpc);
