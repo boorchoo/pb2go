@@ -46,11 +46,13 @@ SOURCE;
 		$namespace = $this->getPHPNamespace($this->package);
 		$source = <<<SOURCE
 <?php
-	
+
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
 namespace {$namespace};
-	
+
 class {$this->name}Client extends \JSONRPC\Client {
-	
+
 	public function __construct(\$url) {
 		parent::__construct(\$url);
 	}
@@ -70,7 +72,7 @@ SOURCE;
 		$source .= <<<'SOURCE'
 
 }
-	
+
 SOURCE;
 	
 		return $source;
@@ -81,12 +83,15 @@ SOURCE;
 		$source = <<<SOURCE
 <?php
 
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
 namespace {$namespace};
 
 class {$this->name} extends \JSONRPC\Service {
 
 	public function __construct() {
 		parent::__construct();
+		\$this->setAuthenticationClass('{$namespace}\\{$this->name}Authentication');
 SOURCE;
 		if (!empty($this->service['rpcs'])) {
 			foreach ($this->service['rpcs'] as $rpcName => $rpc) {
@@ -100,9 +105,29 @@ SOURCE;
 		$source .= <<<'SOURCE'
 	}
 
+}
+
+SOURCE;
+	
+		return $source;
+	}
+	
+	public function generatePHPAuthenticationClassSource() {
+		$namespace = $this->getPHPNamespace($this->package);
+		$source = <<<SOURCE
+<?php
+
+namespace {$namespace};
+
+class {$this->name}Authentication extends \JSONRPC\Authentication {
+
+	public function __construct() {
+		parent::__construct();
+	}
+
 	public function authenticate() {
-		$client = NULL;
-		return $client;
+		\$client = NULL;
+		return \$client;
 	}
 
 }
@@ -112,6 +137,38 @@ SOURCE;
 		return $source;
 	}
 	
+	public function generatePHPJSONRPCAuthenticationClassSource() {
+		$source = <<<'SOURCE'
+<?php
+
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
+
+abstract class Authentication {
+
+	protected function __construct() {
+	}
+
+	public abstract function authenticate();
+
+	protected function hasRequestHeader($header) {
+		$requestHeaders = getallheaders();
+		return isset($requestHeaders[$header]);
+	}
+
+	protected function getRequestHeader($header) {
+		$requestHeaders = getallheaders();
+		return isset($requestHeaders[$header]) ? $requestHeaders[$header] : NULL;
+	}
+
+}
+
+SOURCE;
+	
+		return $source;
+	}
+
 	public function generatePHPJSONRPCClientClassSource() {
 		$source = <<<'SOURCE'
 <?php
@@ -123,12 +180,12 @@ namespace JSONRPC;
 abstract class Client {
 
 	protected $url;
-	protected $headers;
+	protected $requestHeaders;
 	protected $id;
 
 	protected function __construct($url) {
 		$this->url = $url;
-		$this->headers = array();
+		$this->requestHeaders = array();
 		$this->id = 0;
 	}
 
@@ -136,25 +193,25 @@ abstract class Client {
 		return $this->url;
 	}
 
-	public function hasHeader($header) {
-		return isset($this->headers[$header]);
+	public function hasRequestHeader($header) {
+		return isset($this->requestHeaders[$header]);
 	}
 
-	public function getHeader($header) {
-		return $this->hasHeader($header) ? $this->headers[$header] : NULL; 
+	public function getRequestHeader($header) {
+		return $this->hasRequestHeader($header) ? $this->requestHeaders[$header] : NULL; 
 	}
 
-	public function setHeader($header, $value = NULL) {
+	public function setRequestHeader($header, $value = NULL) {
 		if ($value === NULL) {
-			$this->clearHeader($header);
+			$this->clearRequestHeader($header);
 		} else {
-			$this->headers[$header] = $value;
+			$this->requestHeaders[$header] = $value;
 		}
 	}
 
-	public function clearHeader($header) {
-		if ($this->hasHeader($header)) {
-			unset($this->headers[$header]);
+	public function clearRequestHeader($header) {
+		if ($this->hasRequestHeader($header)) {
+			unset($this->requestHeaders[$header]);
 		}
 	}
 
@@ -177,11 +234,11 @@ abstract class Client {
 		curl_setopt($ch, CURLOPT_POST, 1);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $request->serialize());
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
-		$headers = array();
-		foreach ($this->headers as $header => $value) {
-			array_push($headers, "{$header}: {$value}");
+		$requestHeaders = array();
+		foreach ($this->requestHeaders as $header => $value) {
+			array_push($requestHeaders, "{$header}: {$value}");
 		}
-		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, $requestHeaders);
 		$_response = curl_exec($ch);
 		curl_close ($ch);
 
@@ -210,10 +267,16 @@ namespace JSONRPC;
 
 abstract class Service {
 
+	protected $authenticationClassName;
 	protected $methods;
 
 	protected function __construct() {
+		$this->authenticationClassName = NULL;
 		$this->methods = array();
+	}
+
+	public function setAuthenticationClass($authenticationClassName) {
+		$this->authenticationClassName = $authenticationClassName;
 	}
 
 	public function registerMethod($methodName, $methodClassName, $requestClassName, $responseClassName) {
@@ -225,11 +288,14 @@ abstract class Service {
 		return TRUE;
 	}
 
-	public abstract function authenticate();
-
 	public function run() {
 		try {
-			$client = $this->authenticate();
+			if (empty($this->authenticationClassName)) {
+				$client = NULL;
+			} else {
+				$authentication = new $this->authenticationClassName();
+				$client = $authentication->authenticate();
+			}
 
 			$request = Request::parse(file_get_contents("php://input"));
 			//$isNotification = NULL === $request->getId();
@@ -280,16 +346,6 @@ abstract class Service {
 			header('Content-Type: application/javascript');
 			echo "{$jsonp}({$response->serialize()});";
 		}
-	}
-
-	protected function hasHeader($header) {
-		$headers = getallheaders();
-		return isset($headers[$header]);
-	}
-
-	protected function getHeader($header) {
-		$headers = getallheaders();
-		return isset($headers[$header]) ? $headers[$header] : NULL; 
 	}
 
 }
