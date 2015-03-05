@@ -101,9 +101,6 @@ if (empty($_mode) || $_mode == 'php-service' || $_mode == 'php-client') {
 	if (!file_exists("{$path}/classes/JSONRPC")) {
 		mkdir("{$path}/classes/JSONRPC");
 	}
-	if (!file_exists("{$path}/configs")) {
-		mkdir("{$path}/configs");
-	}
 }
 if (empty($_mode) || $_mode == 'php-service' || $_mode == 'js-client') {
 	if (!file_exists("{$path}/public")) {
@@ -201,6 +198,8 @@ if (empty($_mode) || $_mode == 'php-service') {
 	
 	output("{$path}/classes/JSONRPC/Method.php", $serviceGenerator->generatePHPMethodClassSource());
 	
+	output("{$path}/classes/JSONRPC/Configuration.php", $serviceGenerator->generatePHPJSONRPCConfigurationClassSource());
+	
 	output("{$path}/classes/JSONRPC/Authentication.php", $serviceGenerator->generatePHPJSONRPCAuthenticationClassSource());
 }
 
@@ -214,8 +213,8 @@ foreach ($proto['services'] as $serviceName => $service) {
 	$serviceGenerator = new ServiceGenerator($proto['package'], $serviceName, $service);
 	if (empty($_mode) || $_mode == 'php-service') {
 		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}.php", $serviceGenerator->generatePHPClassSource());
+		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}Configuration.php", $serviceGenerator->generatePHPConfigurationClassSource(), FALSE);
 		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}Authentication.php", $serviceGenerator->generatePHPAuthenticationClassSource(), FALSE);
-		output("{$path}/configs/{$serviceName}.php", $serviceGenerator->generatePHPConfigSource(), FALSE);
 		output("{$path}/public/{$serviceName}.php", $serviceGenerator->generatePHPSource());
 	}
 	if (empty($_mode) || $_mode == 'php-client') {

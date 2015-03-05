@@ -12,23 +12,13 @@ class ServiceGenerator extends BaseGenerator {
 		$this->name = $name;
 		$this->service = $service;
 	}
-	
-	public function generatePHPConfigSource() {
-		$source = <<<'SOURCE'
-<?php
 
-SOURCE;
-		return $source;
-	}
-	
 	public function generatePHPSource() {
 		$namespace = $this->getPHPNamespace($this->package);
 		$source = <<<SOURCE
 <?php
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
-
-include '../configs/{$this->name}.php';
 
 spl_autoload_register(function (\$class) {
     include "../classes/" . str_replace('\\\\', '/', \$class) . ".php";
@@ -91,7 +81,10 @@ class {$this->name} extends \JSONRPC\Service {
 
 	public function __construct() {
 		parent::__construct();
+
+		\$this->setConfigurationClass('{$namespace}\\{$this->name}Configuration');
 		\$this->setAuthenticationClass('{$namespace}\\{$this->name}Authentication');
+
 SOURCE;
 		if (!empty($this->service['rpcs'])) {
 			foreach ($this->service['rpcs'] as $rpcName => $rpc) {
@@ -111,7 +104,27 @@ SOURCE;
 	
 		return $source;
 	}
+
+	public function generatePHPConfigurationClassSource() {
+		$namespace = $this->getPHPNamespace($this->package);
+		$source = <<<SOURCE
+<?php
+
+namespace {$namespace};
+
+class {$this->name}Configuration extends \JSONRPC\Configuration {
+
+	public function __construct() {
+		parent::__construct();
+	}
+
+}
+
+SOURCE;
 	
+		return $source;
+	}
+
 	public function generatePHPAuthenticationClassSource() {
 		$namespace = $this->getPHPNamespace($this->package);
 		$source = <<<SOURCE
@@ -121,8 +134,8 @@ namespace {$namespace};
 
 class {$this->name}Authentication extends \JSONRPC\Authentication {
 
-	public function __construct() {
-		parent::__construct();
+	public function __construct(\$config) {
+		parent::__construct(\$config);
 	}
 
 	public function authenticate() {
@@ -136,7 +149,52 @@ SOURCE;
 	
 		return $source;
 	}
+
+	public function generatePHPJSONRPCConfigurationClassSource() {
+		$source = <<<'SOURCE'
+<?php
+
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
+
+class Configuration {
+
+	protected $values;
+
+	public function __construct() {
+		$this->values = array();
+	}
+
+	public function has($key) {
+		return isset($this->values[$key]);
+	}
+
+	public function get($key) {
+		return $this->has($key) ? $this->values[$key] : NULL;
+	}
+
+	public function set($key, $value = NULL) {
+		if ($value === NULL) {
+			$this->clear($key);
+		} else {
+			$this->values[$key] = $value;
+		}
+	}
+
+	public function clear($key) {
+		if ($this->has($key)) {
+			unset($this->values[$key]);
+		}
+	}
+
+}
+
+SOURCE;
 	
+		return $source;
+	}
+
 	public function generatePHPJSONRPCAuthenticationClassSource() {
 		$source = <<<'SOURCE'
 <?php
@@ -147,7 +205,10 @@ namespace JSONRPC;
 
 abstract class Authentication {
 
-	protected function __construct() {
+	protected $config;
+
+	protected function __construct($config) {
+		$this->config = $config;
 	}
 
 	public abstract function authenticate();
@@ -267,12 +328,18 @@ namespace JSONRPC;
 
 abstract class Service {
 
+	protected $configurationClassName;
 	protected $authenticationClassName;
 	protected $methods;
 
 	protected function __construct() {
+		$this->configurationClassName = NULL;
 		$this->authenticationClassName = NULL;
 		$this->methods = array();
+	}
+
+	public function setConfigurationClass($configurationClassName) {
+		$this->configurationClassName = $configurationClassName;
 	}
 
 	public function setAuthenticationClass($authenticationClassName) {
@@ -290,10 +357,16 @@ abstract class Service {
 
 	public function run() {
 		try {
+			if (empty($this->configurationClassName)) {
+				$config = new Configuration();
+			} else {
+				$config = new $this->configurationClassName();
+			}
+
 			if (empty($this->authenticationClassName)) {
 				$client = NULL;
 			} else {
-				$authentication = new $this->authenticationClassName();
+				$authentication = new $this->authenticationClassName($config);
 				$client = $authentication->authenticate();
 			}
 
@@ -313,8 +386,8 @@ abstract class Service {
 
 			try {
 				$methodClassName = $this->methods[$request->getMethod()]['methodClassName'];
-				$method = new $methodClassName();
-				$authorized = $method->authorize($client, $params);
+				$method = new $methodClassName($config, $client);
+				$authorized = $method->authorize($params);
 			} catch (\Exception $e) {
 				throw new InternalError($e);
 			}
@@ -365,10 +438,15 @@ namespace JSONRPC;
 
 abstract class Method {
 
-	public function __construct() {
+	protected $config;
+	protected $client;
+
+	public function __construct($config, $client) {
+		$this->config = $config;
+		$this->client = $client;
 	}
 
-	public abstract function authorize($client, $params);
+	public abstract function authorize($params);
 
 	public abstract function invoke($params);
 

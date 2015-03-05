@@ -24,11 +24,11 @@ namespace {$namespace};
 
 class {$this->serviceName}_{$this->name} extends \JSONRPC\Method {
 
-	public function __construct() {
-		parent::__construct();
+	public function __construct(\$config, \$client) {
+		parent::__construct(\$config, \$client);
 	}
 	
-	public function authorize(\$client, \$params) {
+	public function authorize(\$params) {
 		return TRUE;
 	}
 
