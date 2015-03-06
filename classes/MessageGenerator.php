@@ -34,7 +34,7 @@ class MessageGenerator extends BaseGenerator {
 				$source = "{$field['default']}";
 				break;
 			case 'string':
-				$source = "'{$field['default']}'";
+				$source = "{$field['default']}";
 				break;
 			default:
 				//TODO: Default values for message types
@@ -50,7 +50,7 @@ class MessageGenerator extends BaseGenerator {
 				$source = "{$field['default']}";
 				break;
 			case 'string':
-				$source = "\"{$field['default']}\"";
+				$source = "{$field['default']}";
 				break;
 			default:
 				//TODO: Default values for message types

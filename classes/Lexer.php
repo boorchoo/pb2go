@@ -24,6 +24,8 @@ class Lexer {
 	protected $patterns;
 	protected $text;
 	protected $offset;
+	protected $line;
+	protected $column;
 	
 	public function __construct($text) {
 		$this->patterns = array(
@@ -43,11 +45,21 @@ class Lexer {
 			self::SINGLE_QUOTED_STRING => "/(\'([^\'\\\\]|\\\\.)*\')/",
 			self::SINGLE_LINE_COMMENT => "/(\/\/.*)/",
 			self::MULTIPLE_LINE_COMMENT => "/(\/\*.*\*\/)/s",
-			self::KEYWORD => "/(import|public|package|message|enum|required|optional|repeated|double|float|int32|int64|uint32|uint64|sint32|sint64|fixed32|fixed64|sfixed32|sfixed64|bool|string|bytes|option|default|packed|deprecated|service|rpc|returns|group|extensions|to|max|extend|oneof)/",
+			self::KEYWORD => "/(import|public|package|message|enum|required|optional|repeated|double|float|int32|int64|uint32|uint64|sint32|sint64|fixed32|fixed64|sfixed32|sfixed64|bool|string|bytes|option|default|packed|deprecated|service|rpc|returns|group|extensions|to|max|extend|oneof)[\s\{\}\[\]\(\)\=\,\;]/",
 			self::IDENTIFIER => "/([^\s\{\}\[\]\(\)\=\,\;]+)/",
 		);
 		$this->text = $text;
-		$this->offset = 0; 
+		$this->offset = 0;
+		$this->line = 1;
+		$this->column = 1; 
+	}
+	
+	public function getLine() {
+		return $this->line;
+	}
+	
+	public function getColumn() {
+		return $this->column;
 	}
 	
 	public function getNextToken() {
@@ -57,7 +69,13 @@ class Lexer {
 				if ($offset === $this->offset) {
 					$text = $matches[1][0];
 					$this->offset += strlen($text);
-					return new Token($type, $text);
+					$token = new Token($type, $text);
+					$token->setLine($this->line);
+					$token->setColumn($this->column);
+					$lines = substr_count($text, "\n");
+					$this->line += $lines;
+					$this->column = $lines === 0 ? $this->column + strlen($text) : strlen($text) - strrpos($text, "\n");
+					return $token;
 				}
 			}
 		}

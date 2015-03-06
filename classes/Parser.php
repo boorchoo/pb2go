@@ -44,7 +44,7 @@ class Parser {
 				continue;
 			}
 			if ($type !== NULL && $token->getType() !== $type) {
-				throw new Exception("Expected {$type} but found {$token->getType()} => {$token->getText()}");
+				throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected {$type} but found {$token->getType()} => {$token->getText()}");
 			}
 			return $token;
 		}
@@ -57,7 +57,7 @@ class Parser {
 	public function parse() {
 		while ($token = $this->getNextToken()) {
 			if ($token->getType() !== Lexer::KEYWORD) {
-				throw new Exception('Expected ' . Lexer::KEYWORD . " but found {$token->getType()} => {$token->getText()}");
+				throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::KEYWORD . " but found {$token->getType()} => {$token->getText()}");
 			}
 			switch ($token->getText()) {
 				case 'import':
@@ -82,7 +82,7 @@ class Parser {
 					$this->parseOption();
 					break;
 				default:
-					throw new Exception("Unexpected {$token->getType()} => {$token->getText()}");
+					throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 			}
 		}
 		return $this->proto;
@@ -125,7 +125,7 @@ class Parser {
 				return;
 			}
 			if ($token->getType() !== Lexer::KEYWORD) {
-				throw new Exception('Expected ' . Lexer::KEYWORD . " but found {$token->getType()} => {$token->getText()}");
+				throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::KEYWORD . " but found {$token->getType()} => {$token->getText()}");
 			}
 			switch ($token->getText()) {
 				case 'required':
@@ -140,10 +140,10 @@ class Parser {
 					$this->parseEnum();
 					break;
 				default:
-					throw new Exception("Unexpected {$token->getType()} => {$token->getText()}");
+					throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 			}
 		}
-		throw new Exception('Unexpected ' . (empty($token) ? 'EOF' : "{$token->getType()} => {$token->getText()}"));
+		throw new Exception(empty($token) ? 'Unexpected EOF' : "[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 	}
 
 	protected function parseField($rule) {
@@ -158,9 +158,12 @@ class Parser {
 		$token = $this->getNextToken(Lexer::NUMBER);
 		$number = $token->getText();
 		$token = $this->getNextToken();
-		if (empty($token) || ($token->getType() !== Lexer::OPENING_BRACKET && $token->getType() !== Lexer::SEMICOLON)) {
-			throw new Exception("Expected " . Lexer::OPENING_BRACKET . " or " . Lexer::SEMICOLON . " but found "
-					. (empty($token) ? 'EOF' : "{$token->getType()} => {$token->getText()}"));
+		if (empty($token)) {
+			throw new Exception('Unxpected EOF');
+		}
+		if ($token->getType() !== Lexer::OPENING_BRACKET && $token->getType() !== Lexer::SEMICOLON) {
+			throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::OPENING_BRACKET . " or "
+				. Lexer::SEMICOLON . " but found {$token->getType()} => {$token->getText()}");
 		}
 		if ($token->getType() === Lexer::OPENING_BRACKET) {
 			//TODO: Parse comma separated list of options
@@ -181,7 +184,7 @@ class Parser {
 					$packed = $token->getText();
 					break;
 				default:
-					throw new Exception("Unexpected {$token->getType()} => {$token->getText()}");
+					throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 			}
 			$this->getNextToken(Lexer::CLOSING_BRACKET);
 			$this->getNextToken(Lexer::SEMICOLON);
@@ -209,7 +212,7 @@ class Parser {
 				return;
 			}
 			if ($token->getType() !== Lexer::IDENTIFIER) {
-				throw new Exception('Expected ' . Lexer::IDENTIFIER . " but found {$token->getType()} => {$token->getText()}");
+				throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::IDENTIFIER . " but found {$token->getType()} => {$token->getText()}");
 			}
 			$name = $token->getText();
 			$this->getNextToken(Lexer::EQUALS);
@@ -218,7 +221,7 @@ class Parser {
 			$this->getNextToken(Lexer::SEMICOLON);
 			$this->proto['enums'][$type][$name] = $value;
 		}
-		throw new Exception('Unexpected ' . (empty($token) ? 'EOF' : "{$token->getType()} => {$token->getText()}"));
+		throw new Exception(empty($token) ? 'Unexpected EOF' : "[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 	}
 
 	protected function parseService() {
@@ -232,17 +235,17 @@ class Parser {
 				return;
 			}
 			if ($token->getType() !== Lexer::KEYWORD) {
-				throw new Exception('Expected ' . Lexer::KEYWORD . " but found {$token->getType()} => {$token->getText()}");
+				throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::KEYWORD . " but found {$token->getType()} => {$token->getText()}");
 			}
 			switch ($token->getText()) {
 				case 'rpc':
 					$this->parseRpc($service);
 					break;
 				default:
-					throw new Exception("Unexpected {$token->getType()} => {$token->getText()}");
+					throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 			}
 		}
-		throw new Exception('Unexpected ' . (empty($token) ? 'EOF' : "{$token->getType()} => {$token->getText()}"));
+		throw new Exception(empty($token) ? 'Unexpected EOF' : "[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 	}
 	
 	protected function parseRpc($service) {
@@ -256,9 +259,9 @@ class Parser {
 		}
 		$type = $this->getType($token->getText());
 		$this->getNextToken(Lexer::CLOSING_PARENTHESIS);
-		$token = $this->getNextToken();
-		if ($token->getType() !== Lexer::KEYWORD || $token->getText() !== 'returns') {
-			throw new Exception('Expected ' . Lexer::KEYWORD . " => 'returns' but found {$token->getType()} => {$token->getText()}");
+		$token = $this->getNextToken(Lexer::KEYWORD);
+		if ($token->getText() !== 'returns') {
+			throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 		}
 		$this->getNextToken(Lexer::OPENING_PARENTHESIS);
 		$token = $this->getNextToken();
