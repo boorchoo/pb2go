@@ -75,7 +75,10 @@ class Parser {
 				break;
 			case '=':
 				$number = $this->tokenizer->next();
-				break;
+				$token = $this->tokenizer->next();
+				if ($token !== '[') {
+					break;
+				}
 			case '[':
 				$token = $this->tokenizer->next();
 				switch ($token) {
