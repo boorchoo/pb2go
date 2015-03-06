@@ -1,6 +1,7 @@
 <?php
 
-require 'classes/Tokenizer.php';
+require 'classes/Token.php';
+require 'classes/Lexer.php';
 require 'classes/Parser.php';
 
 require 'classes/BaseGenerator.php';
@@ -113,11 +114,16 @@ if (empty($_mode) || $_mode == 'js-client') {
 	}
 }
 
-$parser = new Parser();
+$parser = new Parser(file_get_contents($_file));
 try {
-	$proto = $parser->parse($_file);
+	$proto = $parser->parse();
+	if (empty($proto['package'])) {
+		$pathinfo = pathinfo($_file);
+		$proto['package'] = $pathinfo['filename'];
+	}
 } catch (Exception $e) {
-	die($e->getMessage() . PHP_EOL);
+	echo "ERROR: {$e->getMessage()}\n";
+	die();
 }
 
 $serviceGenerator = new ServiceGenerator($proto['package'], NULL, NULL);
