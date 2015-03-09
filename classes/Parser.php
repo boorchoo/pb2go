@@ -154,12 +154,21 @@ class Parser {
 		$type = $this->getType($token->getText());
 		$token = $this->getNextToken(Lexer::IDENTIFIER);
 		$field = $token->getText();
-		$this->getNextToken(Lexer::EQUALS);
-		$token = $this->getNextToken(Lexer::NUMBER);
-		$number = $token->getText();
 		$token = $this->getNextToken();
 		if (empty($token)) {
-			throw new Exception('Unxpected EOF');
+			throw new Exception('Unexpected EOF');
+		}
+		if ($token->getType() !== Lexer::EQUALS && $token->getType() !== Lexer::OPENING_BRACKET && $token->getType() !== Lexer::SEMICOLON) {
+			throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::EQUALS . " or " . Lexer::OPENING_BRACKET
+				. " or " . Lexer::SEMICOLON . " but found {$token->getType()} => {$token->getText()}");
+		}
+		if ($token->getType() === Lexer::EQUALS) {
+			$token = $this->getNextToken(Lexer::NUMBER);
+			$tag = $token->getText();
+			$token = $this->getNextToken();
+			if (empty($token)) {
+				throw new Exception('Unexpected EOF');
+			}
 		}
 		if ($token->getType() !== Lexer::OPENING_BRACKET && $token->getType() !== Lexer::SEMICOLON) {
 			throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::OPENING_BRACKET . " or "
@@ -173,7 +182,7 @@ class Parser {
 					$this->getNextToken(Lexer::EQUALS);
 					$token = $this->getNextToken();
 					if (empty($token)) {
-						throw new Exception('Unxpected EOF');
+						throw new Exception('Unexpected EOF');
 					}
 					$default = $token->getText();
 					//TODO: Check if $default is valid value for type $type
@@ -192,7 +201,7 @@ class Parser {
 		$this->proto['messages'][implode('.', $this->currentType)]['fields'][$field] = array(
 			'type' => $type,
 			'rule' => $rule,
-			'number' => $number,
+			'tag' => isset($tag) ? $tag : NULL,
 			'default' => isset($default) ? $default : NULL,
 			'packed' => isset($packed) ? $packed : NULL,
 		);
@@ -255,7 +264,7 @@ class Parser {
 		$this->getNextToken(Lexer::OPENING_PARENTHESIS);
 		$token = $this->getNextToken();
 		if (empty($token)) {
-			throw new Exception('Unxpected EOF');
+			throw new Exception('Unexpected EOF');
 		}
 		$type = $this->getType($token->getText());
 		$this->getNextToken(Lexer::CLOSING_PARENTHESIS);
@@ -266,7 +275,7 @@ class Parser {
 		$this->getNextToken(Lexer::OPENING_PARENTHESIS);
 		$token = $this->getNextToken();
 		if (empty($token)) {
-			throw new Exception('Unxpected EOF');
+			throw new Exception('Unexpected EOF');
 		}
 		$returns = $this->getType($token->getText());
 		$this->getNextToken(Lexer::CLOSING_PARENTHESIS);
