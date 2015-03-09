@@ -90,16 +90,24 @@ class Parser {
 	}
 
 	protected function parseImport() {
-		throw new Exception("Parsing " . Lexer::KEYWORD . " => import is not implemented");
-		/*
 		$token = $this->getNextToken();
-		if (empty($token) || ($token->getType() !== Lexer::SINGLE_QUOTED_STRING && $token->getType() !== Lexer::DOUBLE_QUOTED_STRING)) {
-			throw new Exception("Expected " . Lexer::SINGLE_QUOTED_STRING . " or " . Lexer::DOUBLE_QUOTED_STRING . " but found "
-				. (empty($token) ? 'EOF' : "{$token->getType()} => {$token->getText()}"));
+		if (empty($token)) {
+			throw new Exception('Unexpected EOF');
+		}
+		$public = FALSE;
+		if ($token->getType() === Lexer::KEYWORD && $token->getText() === 'public') {
+			$public = TRUE;
+			$token = $this->getNextToken();
+			if (empty($token)) {
+				throw new Exception('Unexpected EOF');
+			}
+		}
+		if ($token->getType() !== Lexer::SINGLE_QUOTED_STRING && $token->getType() !== Lexer::DOUBLE_QUOTED_STRING) {
+			throw new Exception("Expected " . Lexer::SINGLE_QUOTED_STRING . " or " . Lexer::DOUBLE_QUOTED_STRING . " but found {$token->getType()} => {$token->getText()}");
 		}
 		$path = $token->getText();
 		$this->getNextToken(Lexer::SEMICOLON);
-		*/
+		//TODO: Parse $path
 	}
 
 	protected function parsePackage() {
