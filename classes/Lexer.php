@@ -45,7 +45,7 @@ class Lexer {
 			self::SINGLE_QUOTED_STRING => "/(\'([^\'\\\\]|\\\\.)*\')/",
 			self::SINGLE_LINE_COMMENT => "/(\/\/.*)/",
 			self::MULTIPLE_LINE_COMMENT => "/(\/\*.*\*\/)/s",
-			self::KEYWORD => "/(import|public|package|message|enum|required|optional|repeated|double|float|int32|int64|uint32|uint64|sint32|sint64|fixed32|fixed64|sfixed32|sfixed64|bool|string|bytes|option|default|packed|deprecated|service|rpc|returns|group|extensions|to|max|extend|oneof)[\s\{\}\[\]\(\)\=\,\;]/",
+			self::KEYWORD => "/(import|public|package|message|enum|required|optional|repeated|double|float|int32|int64|uint32|uint64|sint32|sint64|fixed32|fixed64|sfixed32|sfixed64|bool|string|bytes|option|service|rpc|returns|group|extensions|to|max|extend|oneof)[\s\{\}\[\]\(\)\=\,\;]/",
 			self::IDENTIFIER => "/([^\s\{\}\[\]\(\)\=\,\;]+)/",
 		);
 		$this->text = $text;

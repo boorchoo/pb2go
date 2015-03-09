@@ -27,7 +27,7 @@ abstract class {$class} {
 
 
 SOURCE;
-		foreach ($this->enum as $name => $value) {
+		foreach ($this->enum['values'] as $name => $value) {
 			$source .= "	const {$name} = {$value};\n";
 		} 
 		$source .= <<<SOURCE
@@ -45,7 +45,7 @@ SOURCE;
 {$this->type} = {
 
 SOURCE;
-		foreach ($this->enum as $name => $value) {
+		foreach ($this->enum['values'] as $name => $value) {
 			$source .= "	{$name}: {$value},\n";
 		}
 		$source = substr($source, 0, strlen($source) - 2);

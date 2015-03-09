@@ -14,6 +14,7 @@ class Parser {
 			'enums' => array(),
 			'messages' => array(),
 			'services' => array(),
+			'options' => array(),
 		);
 		
 		$this->currentType = array();
@@ -118,6 +119,7 @@ class Parser {
 		$this->getNextToken(Lexer::OPENING_BRACE);
 		$this->proto['messages'][$type] = array(
 			'fields' => array(),
+			'options' => array(),
 		);
 		while ($token = $this->getNextToken()) {
 			if ($token->getType() === Lexer::CLOSING_BRACE) {
@@ -138,6 +140,22 @@ class Parser {
 					break;
 				case 'enum':
 					$this->parseEnum();
+					break;
+				case 'extend':
+					$this->parseExtend();
+					break;
+				case 'option':
+					$token = $this->getNextToken(Lexer::IDENTIFIER);
+					$option = $token->getText();
+					$this->getNextToken(Lexer::EQUALS);
+					$token = $this->getNextToken();
+					if (empty($token)) {
+						break;
+					}
+					$value = $token->getText();
+					//TODO: Check if $value is valid value for option
+					$this->getNextToken(Lexer::SEMICOLON);
+					$this->proto['messages'][$type]['options'][$option] = $value;
 					break;
 				default:
 					throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
@@ -174,36 +192,39 @@ class Parser {
 			throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::OPENING_BRACKET . " or "
 				. Lexer::SEMICOLON . " but found {$token->getType()} => {$token->getText()}");
 		}
+		$options = array();
 		if ($token->getType() === Lexer::OPENING_BRACKET) {
-			//TODO: Parse comma separated list of options
-			$token = $this->getNextToken(Lexer::KEYWORD);
-			switch ($token->getText()) {
-				case 'default':
+			while ($token = $this->getNextToken()) {
+				if ($token->getType() === Lexer::CLOSING_BRACKET) {
+					$token = $this->getNextToken(Lexer::SEMICOLON);
+					break;
+				}
+				if ($token->getType() === Lexer::IDENTIFIER) {
+					$option = $token->getText();
 					$this->getNextToken(Lexer::EQUALS);
 					$token = $this->getNextToken();
 					if (empty($token)) {
-						throw new Exception('Unexpected EOF');
+						break;
 					}
-					$default = $token->getText();
-					//TODO: Check if $default is valid value for type $type
-					break;
-				case 'packed':
-					$this->getNextToken(Lexer::EQUALS);
-					$token = $this->getNextToken(Lexer::BOOLEAN);
-					$packed = $token->getText();
-					break;
-				default:
-					throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
+					$value = $token->getText();
+					//TODO: Check if $value is valid value for option
+					$options[$option] = $value;
+					continue;
+				}
+				if ($token->getType() === Lexer::COMMA && !empty($options)) {
+					continue;
+				}
+				throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 			}
-			$this->getNextToken(Lexer::CLOSING_BRACKET);
-			$this->getNextToken(Lexer::SEMICOLON);
+			if (empty($token)) {
+				throw new Exception('Unexpected EOF');
+			}
 		}
 		$this->proto['messages'][implode('.', $this->currentType)]['fields'][$field] = array(
-			'type' => $type,
 			'rule' => $rule,
+			'type' => $type,
 			'tag' => isset($tag) ? $tag : NULL,
-			'default' => isset($default) ? $default : NULL,
-			'packed' => isset($packed) ? $packed : NULL,
+			'options' => $options,
 		);
 	}
 
@@ -214,21 +235,39 @@ class Parser {
 		$type = implode('.', $this->currentType);
 		//TODO: Check if $type is valid identifier
 		$this->getNextToken(Lexer::OPENING_BRACE);
-		$this->proto['enums'][$type] = array();
+		$this->proto['enums'][$type] = array(
+			'values' => array(),
+			'options' => array(),
+		);
 		while ($token = $this->getNextToken()) {
 			if ($token->getType() === Lexer::CLOSING_BRACE) {
 				array_pop($this->currentType);
 				return;
 			}
-			if ($token->getType() !== Lexer::IDENTIFIER) {
-				throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::IDENTIFIER . " but found {$token->getType()} => {$token->getText()}");
+			if ($token->getType() === Lexer::IDENTIFIER) {
+				$name = $token->getText();
+				$this->getNextToken(Lexer::EQUALS);
+				$token = $this->getNextToken(Lexer::NUMBER);
+				$value = $token->getText();
+				$this->getNextToken(Lexer::SEMICOLON);
+				$this->proto['enums'][$type]['values'][$name] = $value;
+				continue;
 			}
-			$name = $token->getText();
-			$this->getNextToken(Lexer::EQUALS);
-			$token = $this->getNextToken(Lexer::NUMBER);
-			$value = $token->getText();
-			$this->getNextToken(Lexer::SEMICOLON);
-			$this->proto['enums'][$type][$name] = $value;
+			if ($token->getType() === Lexer::KEYWORD && $token->getText() === 'option') {
+				$token = $this->getNextToken(Lexer::IDENTIFIER);
+				$option = $token->getText();
+				$this->getNextToken(Lexer::EQUALS);
+				$token = $this->getNextToken();
+				if (empty($token)) {
+					break;
+				}
+				$value = $token->getText();
+				//TODO: Check if $value is valid value for option
+				$this->getNextToken(Lexer::SEMICOLON);
+				$this->proto['enums'][$type]['options'][$option] = $value;
+				continue;
+			}
+			break;
 		}
 		throw new Exception(empty($token) ? 'Unexpected EOF' : "[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 	}
@@ -238,7 +277,10 @@ class Parser {
 		$service = $token->getText();
 		//TODO: Check if $service is valid identifier
 		$this->getNextToken(Lexer::OPENING_BRACE);
-		$this->proto['services'][$service] = array();
+		$this->proto['services'][$service] = array(
+			'rpcs' => array(),
+			'options' => array(),
+		);
 		while ($token = $this->getNextToken()) {
 			if ($token->getType() === Lexer::CLOSING_BRACE) {
 				return;
@@ -249,6 +291,19 @@ class Parser {
 			switch ($token->getText()) {
 				case 'rpc':
 					$this->parseRpc($service);
+					break;
+				case 'option':
+					$token = $this->getNextToken(Lexer::IDENTIFIER);
+					$option = $token->getText();
+					$this->getNextToken(Lexer::EQUALS);
+					$token = $this->getNextToken();
+					if (empty($token)) {
+						break;
+					}
+					$value = $token->getText();
+					//TODO: Check if $value is valid value for option
+					$this->getNextToken(Lexer::SEMICOLON);
+					$this->proto['services'][$service]['options'][$option] = $value;
 					break;
 				default:
 					throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
@@ -279,19 +334,93 @@ class Parser {
 		}
 		$returns = $this->getType($token->getText());
 		$this->getNextToken(Lexer::CLOSING_PARENTHESIS);
-		$this->getNextToken(Lexer::SEMICOLON);
+		$token = $this->getNextToken();
+		if (empty($token)) {
+			throw new Exception('Unexpected EOF');
+		}
+		if ($token->getType() !== Lexer::SEMICOLON && $token->getType() !== Lexer::OPENING_BRACE) {
+			throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::SEMICOLON . " or " . Lexer::OPENING_BRACE . " but found {$token->getType()} => {$token->getText()}");
+		}
+		$options = array();
+		if ($token->getType() === Lexer::OPENING_BRACE) {
+			while ($token = $this->getNextToken()) {
+				if ($token->getType() === Lexer::CLOSING_BRACE) {
+					break;
+				}
+				if ($token->getType() !== Lexer::KEYWORD || $token->getText() !== 'option') {
+					throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::SEMICOLON . " or " . Lexer::KEYWORD . " => option but found {$token->getType()} => {$token->getText()}");
+				}
+				$token = $this->getNextToken(Lexer::IDENTIFIER);
+				$option = $token->getText();
+				$this->getNextToken(Lexer::EQUALS);
+				$token = $this->getNextToken();
+				if (empty($token)) {
+					break;
+				}
+				$value = $token->getText();
+				//TODO: Check if $value is valid value for option
+				$this->getNextToken(Lexer::SEMICOLON);
+				$options[$option] = $value;
+			}
+			if (empty($token)) {
+				throw new Exception('Unexpected EOF');
+			}
+		}
 		$this->proto['services'][$service]['rpcs'][$rpc] = array(
 			'type' => $type,
 			'returns' => $returns,
+			'options' => $options,
 		);
 	}
 
 	protected function parseExtend() {
-		throw new Exception("Parsing " . Lexer::KEYWORD . " => extend is not implemented");
+		$token = $this->getNextToken(Lexer::IDENTIFIER);
+		$type = $this->getType($token->getText());
+		$currentType = $this->currentType;
+		$this->currentType = explode('.', $type);
+		$this->getNextToken(Lexer::OPENING_BRACE);
+		while ($token = $this->getNextToken()) {
+			if ($token->getType() === Lexer::CLOSING_BRACE) {
+				$this->currentType = $currentType;
+				return;
+			}
+			if ($token->getType() !== Lexer::KEYWORD) {
+				throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::KEYWORD . " but found {$token->getType()} => {$token->getText()}");
+			}
+			switch ($token->getText()) {
+				case 'required':
+				case 'optional':
+				case 'repeated':
+					$this->parseField($token->getText());
+					break;
+				case 'message':
+					$this->parseMessage();
+					break;
+				case 'enum':
+					$this->parseEnum();
+					break;
+				case 'extend':
+					$this->parseExtend();
+					break;
+				default:
+					throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
+			}
+		}
+		throw new Exception(empty($token) ? 'Unexpected EOF' : "[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 	}
 
 	protected function parseOption() {
-		throw new Exception("Parsing " . Lexer::KEYWORD . " => option is not implemented");
+		$token = $this->getNextToken(Lexer::IDENTIFIER);
+		$option = $token->getText();
+		$this->getNextToken(Lexer::EQUALS);
+		$token = $this->getNextToken();
+		if (empty($token)) {
+			break;
+		}
+		$value = $token->getText();
+		//TODO: Check if $value is valid value for option
+		$this->getNextToken(Lexer::SEMICOLON);
+		$this->proto['options'][$option] = $value;
 	}
 
 }

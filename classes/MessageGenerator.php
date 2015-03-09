@@ -26,35 +26,38 @@ class MessageGenerator extends BaseGenerator {
 	}
 	
 	protected function getFieldDefaultValuePHPSource($field) {
-		if (is_null($field['default'])) {
+		if (!isset($field['options']['default'])) {
 			return 'NULL';
 		}
 		switch ($field['type']) {
 			case 'int32':
-				$source = "{$field['default']}";
+				$source = "{$field['options']['default']}";
 				break;
 			case 'string':
-				$source = "{$field['default']}";
+				$source = "{$field['options']['default']}";
 				break;
 			default:
 				//TODO: Default values for message types
-				$source = $this->isEnumType($field['type']) ? str_replace('.', '_', $field['type']) . "::{$field['default']}" : 'NULL';
+				$source = $this->isEnumType($field['type']) ? str_replace('.', '_', $field['type']) . "::{$field['options']['default']}" : 'NULL';
 				break;
 		}
 		return $source;
 	}
 	
 	protected function getFieldDefaultValueJavaScriptSource($field) {
+		if (!isset($field['options']['default'])) {
+			return 'null';
+		}
 		switch ($field['type']) {
 			case 'int32':
-				$source = "{$field['default']}";
+				$source = "{$field['options']['default']}";
 				break;
 			case 'string':
-				$source = "{$field['default']}";
+				$source = "{$field['options']['default']}";
 				break;
 			default:
 				//TODO: Default values for message types
-				$source = $this->isEnumType($field['type']) ? "{$field['type']}.{$field['default']}" : 'null';
+				$source = $this->isEnumType($field['type']) ? "{$field['type']}.{$field['options']['default']}" : 'null';
 				break;
 		}
 		return $source;
@@ -99,7 +102,7 @@ SOURCE;
 	public function get{$methodName}() {
 
 SOURCE;
-					$source .= array_key_exists('default', $field) ?
+					$source .= isset($field['options']['default']) ?
 						"		return \$this->has{$methodName}() ? \$this->{$name} : " . $this->getFieldDefaultValuePHPSource($field) . ";\n" : "		return \$this->{$name};\n";
 					$source .= <<<SOURCE
 	}
@@ -346,7 +349,7 @@ SOURCE;
 	this.get{$methodName} = function() {
 
 SOURCE;
-					$source .= !is_null($field['default']) ?
+					$source .= isset($field['options']['default']) ?
 						"		return this.has{$methodName}() ? {$name} : " . $this->getFieldDefaultValueJavaScriptSource($field) . ";\n" : "		return {$name};\n";
 					$source .= <<<SOURCE
 	};
