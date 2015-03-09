@@ -356,7 +356,7 @@ class Parser {
 					break;
 				}
 				if ($token->getType() !== Lexer::KEYWORD || $token->getText() !== 'option') {
-					throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::SEMICOLON . " or " . Lexer::KEYWORD . " => option but found {$token->getType()} => {$token->getText()}");
+					throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::CLOSING_BRACE . " or " . Lexer::KEYWORD . " => option but found {$token->getType()} => {$token->getText()}");
 				}
 				$token = $this->getNextToken(Lexer::IDENTIFIER);
 				$option = $token->getText();
