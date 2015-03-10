@@ -2,20 +2,16 @@
 
 class EnumGenerator extends BaseGenerator {
 	
-	protected $package;
-	protected $type;
 	protected $enum;
 	
-	public function __construct($package, $type, $enum) {
+	public function __construct($enum) {
 		parent::__construct();
-		$this->package = $package;
-		$this->type = $type;
 		$this->enum = $enum;
 	}
 	
 	public function generatePHPClassSource() {
-		$namespace = $this->getPHPNamespace($this->package);
-		$class = str_replace('.', '_', $this->type);
+		$namespace = $this->getPHPNamespace($this->enum['package']);
+		$class = str_replace('.', '_', $this->enum['type']);
 		$source = <<<SOURCE
 <?php
 
@@ -42,7 +38,7 @@ SOURCE;
 	public function generateJavaScriptClassSource() {
 		$source = <<<SOURCE
 
-{$this->type} = {
+{$this->enum['type']} = {
 
 SOURCE;
 		foreach ($this->enum['values'] as $name => $value) {

@@ -2,34 +2,21 @@
 
 class MessageGenerator extends BaseGenerator {
 	
-	protected $package;
-	protected $type;
 	protected $message;
 	
 	protected $className;
 	
-	public function __construct($package, $type, $message) {
+	public function __construct($message) {
 		parent::__construct();
-		$this->package = $package;
-		$this->type = $type;
 		$this->message = $message;
-	}
-	
-	protected function isEnumType($type) {
-		global $types;
-		return in_array($type, array_keys($types['enums']));
-	}
-	
-	protected function isMessageType($type) {
-		global $types;
-		return in_array($type, array_keys($types['messages']));
 	}
 	
 	protected function getFieldDefaultValuePHPSource($field) {
 		if (!isset($field['options']['default'])) {
 			return 'NULL';
 		}
-		switch ($field['type']) {
+		$type = Registry::getType($field['type']);
+		switch ($type['name']) {
 			case 'int32':
 				$source = "{$field['options']['default']}";
 				break;
@@ -37,8 +24,9 @@ class MessageGenerator extends BaseGenerator {
 				$source = "{$field['options']['default']}";
 				break;
 			default:
-				//TODO: Default values for message types
-				$source = $this->isEnumType($field['type']) ? str_replace('.', '_', $field['type']) . "::{$field['options']['default']}" : 'NULL';
+				$source = Registry::isEnumType($field['type']) ? ($this->message['package'] === $type['package'] ? '' :
+					(empty($type['package']) ? '' : '\\' . $this->getPHPNamespace($type['package'])) . '\\')
+					. str_replace('.', '_', $type['name']) . "::{$field['options']['default']}" : 'NULL';
 				break;
 		}
 		return $source;
@@ -48,7 +36,8 @@ class MessageGenerator extends BaseGenerator {
 		if (!isset($field['options']['default'])) {
 			return 'null';
 		}
-		switch ($field['type']) {
+		$type = Registry::getType($field['type']);
+		switch ($type['name']) {
 			case 'int32':
 				$source = "{$field['options']['default']}";
 				break;
@@ -56,16 +45,15 @@ class MessageGenerator extends BaseGenerator {
 				$source = "{$field['options']['default']}";
 				break;
 			default:
-				//TODO: Default values for message types
-				$source = $this->isEnumType($field['type']) ? "{$field['type']}.{$field['options']['default']}" : 'null';
+				$source = Registry::isEnumType($field['type']) ? "{$type['name']}.{$field['options']['default']}" : 'null';
 				break;
 		}
 		return $source;
 	}
 
 	public function generatePHPClassSource() {
-		$namespace = $this->getPHPNamespace($this->package);
-		$class = str_replace('.', '_', $this->type);
+		$namespace = $this->getPHPNamespace($this->message['package']);
+		$class = str_replace('.', '_', $this->message['type']);
 		$source = <<<SOURCE
 <?php
 
@@ -181,6 +169,7 @@ SOURCE;
 SOURCE;
 		foreach ($this->message['fields'] as $name => $field) {
 			$methodName = $this->toCamelCase($name);
+			$type = Registry::getType($field['type']);
 			switch ($field['rule']) {
 				case 'required':
 				case 'optional':
@@ -189,7 +178,7 @@ SOURCE;
 		if (\$includeAllFields || \$this->has{$methodName}()) {
 
 SOURCE;
-					$source .= "			\$value->{$name} = " . ($this->isMessageType($field['type']) ? "\$this->get{$methodName}() == NULL ? NULL : \$this->get{$methodName}()->toStdClass(\$includeAllFields)" : "\$this->get{$methodName}()") . ";";
+					$source .= "			\$value->{$name} = " . (Registry::isMessageType($field['type']) ? "\$this->get{$methodName}() == NULL ? NULL : \$this->get{$methodName}()->toStdClass(\$includeAllFields)" : "\$this->get{$methodName}()") . ";";
 					break;
 				case 'repeated':
 					$source .= <<<SOURCE
@@ -202,7 +191,7 @@ SOURCE;
 			foreach (\$this->get{$methodName}Array() as \${$name}) {
 
 SOURCE;
-					$source .= "				array_push(\$value->{$name}, \${$name}" . ($this->isMessageType($field['type']) ? '->toStdClass($includeAllFields)' : '') . ");";
+					$source .= "				array_push(\$value->{$name}, \${$name}" . (Registry::isMessageType($field['type']) ? '->toStdClass($includeAllFields)' : '') . ");";
 					$source .= <<<SOURCE
 
 			}
@@ -230,6 +219,11 @@ SOURCE;
 SOURCE;
 		foreach ($this->message['fields'] as $name => $field) {
 			$methodName = $this->toCamelCase($name);
+			$typeType = Registry::getType($field['type']);
+			$type = str_replace('.', '_', $typeType['name']);
+			if ($this->message['package'] !== $typeType['package']) {
+				$type = (empty($typeType['package']) ? '' : '\\' . $this->getPHPNamespace($typeType['package'])) . '\\' . $type;
+			}
 			switch ($field['rule']) {
 				case 'required':
 				case 'optional':
@@ -238,7 +232,7 @@ SOURCE;
 		if (isset(\$value->{$name})) {
 
 SOURCE;
-					$source .= "			\$object->set{$methodName}(" . ($this->isMessageType($field['type']) ? str_replace('.', '_', $field['type']) . "::fromStdClass(\$value->{$name})" : "\$value->{$name}") . ");";
+					$source .= "			\$object->set{$methodName}(" . (Registry::isMessageType($field['type']) ? "{$type}::fromStdClass(\$value->{$name})" : "\$value->{$name}") . ");";
 					break;
 				case 'repeated':
 					$source .= <<<SOURCE
@@ -250,7 +244,7 @@ SOURCE;
 			foreach (\$value->{$name} as \${$name}Value) {
 
 SOURCE;
-					$source .= "				\$object->add{$methodName}(" . ($this->isMessageType($field['type']) ? str_replace('.', '_', $field['type']) . "::fromStdClass(\${$name}Value)" : "\${$name}Value") . ");";
+					$source .= "				\$object->add{$methodName}(" . (Registry::isMessageType($field['type']) ? "{$type}::fromStdClass(\${$name}Value)" : "\${$name}Value") . ");";
 					$source .= <<<SOURCE
 
 			}
@@ -274,6 +268,11 @@ SOURCE;
 SOURCE;
 		foreach ($this->message['fields'] as $name => $field) {
 			$methodName = $this->toCamelCase($name);
+			$typeType = Registry::getType($field['type']);
+			$type = str_replace('.', '_', $typeType['name']);
+			if ($this->message['package'] !== $typeType['package']) {
+				$type = (empty($typeType['package']) ? '' : '\\' . $this->getPHPNamespace($typeType['package'])) . '\\' . $type;
+			}
 			switch ($field['rule']) {
 				case 'required':
 				case 'optional':
@@ -282,7 +281,7 @@ SOURCE;
 		if (isset(\$value['{$name}'])) {
 
 SOURCE;
-					$source .= "			\$object->set{$methodName}(" . ($this->isMessageType($field['type']) ? str_replace('.', '_', $field['type']) . "::fromArray(\$value['{$name}'])" : "\$value['{$name}']") . ");";
+					$source .= "			\$object->set{$methodName}(" . (Registry::isMessageType($field['type']) ? "{$type}::fromArray(\$value['{$name}'])" : "\$value['{$name}']") . ");";
 					break;
 				case 'repeated':
 					$source .= <<<SOURCE
@@ -294,7 +293,7 @@ SOURCE;
 			foreach (\$value['{$name}'] as \${$name}Value) {
 
 SOURCE;
-					$source .= "				\$object->add{$methodName}(" . ($this->isMessageType($field['type']) ? str_replace('.', '_', $field['type']) . "::fromArray(\${$name}Value)" : "\${$name}Value") . ");";
+					$source .= "				\$object->add{$methodName}(" . (Registry::isMessageType($field['type']) ? "{$type}::fromArray(\${$name}Value)" : "\${$name}Value") . ");";
 					$source .= <<<SOURCE
 
 			}
@@ -327,7 +326,7 @@ SOURCE;
 	public function generateJavaScriptClassSource() {
 		$source = <<<SOURCE
 
-{$this->type} = function() {
+{$this->message['type']} = function() {
 
 SOURCE;
 		if (!empty($this->message['fields'])) {
@@ -428,6 +427,7 @@ SOURCE;
 SOURCE;
 		foreach ($this->message['fields'] as $name => $field) {
 			$methodName = $this->toCamelCase($name);
+			$type = Registry::getType($field['type']);
 			switch ($field['rule']) {
 				case 'required':
 				case 'optional':
@@ -436,7 +436,7 @@ SOURCE;
 		if (includeAllFields || this.has{$methodName}()) {
 
 SOURCE;
-					$source .= "			value.{$name} = " . ($this->isMessageType($field['type']) ? "this.get{$methodName}() === null ? null : this.get{$methodName}().toObject(includeAllFields)" : "this.get{$methodName}()") . ";";
+					$source .= "			value.{$name} = " . (Registry::isMessageType($field['type']) ? "this.get{$methodName}() === null ? null : this.get{$methodName}().toObject(includeAllFields)" : "this.get{$methodName}()") . ";";
 					break;
 				case 'repeated':
 					$source .= <<<SOURCE
@@ -449,7 +449,7 @@ SOURCE;
 			for (var index in this.get{$methodName}Array()) {
 
 SOURCE;
-					$source .= "				value.{$name}.push(this.get{$methodName}(index)" . ($this->isMessageType($field['type']) ? '.toObject(includeAllFields)' : '') . ");";
+					$source .= "				value.{$name}.push(this.get{$methodName}(index)" . (Registry::isMessageType($field['type']) ? '.toObject(includeAllFields)' : '') . ");";
 					$source .= <<<SOURCE
 
 			}
@@ -473,11 +473,12 @@ SOURCE;
 	};
 };
 
-{$this->type}.fromObject = function(value) {
-	var object = new {$this->type}();
+{$this->message['type']}.fromObject = function(value) {
+	var object = new {$this->message['type']}();
 SOURCE;
 		foreach ($this->message['fields'] as $name => $field) {
 			$methodName = $this->toCamelCase($name);
+			$type = Registry::getType($field['type']);
 			switch ($field['rule']) {
 				case 'required':
 				case 'optional':
@@ -486,7 +487,7 @@ SOURCE;
 	if (typeof value.{$name} !== 'undefined') {
 
 SOURCE;
-					$source .= "		object.set{$methodName}(" . ($this->isMessageType($field['type']) ? "{$field['type']}.fromObject(value.{$name})" : "value.{$name}") . ");";
+					$source .= "		object.set{$methodName}(" . (Registry::isMessageType($field['type']) ? "{$type['name']}.fromObject(value.{$name})" : "value.{$name}") . ");";
 					break;
 				case 'repeated':
 					$source .= <<<SOURCE
@@ -498,7 +499,7 @@ SOURCE;
 		for (var index in value.{$name}) {
 
 SOURCE;
-					$source .= "			object.add{$methodName}(" . ($this->isMessageType($field['type']) ? "{$field['type']}.fromObject(value.{$name}[index])" : "value.{$name}[index]") . ");";
+					$source .= "			object.add{$methodName}(" . (Registry::isMessageType($field['type']) ? "{$type['name']}.fromObject(value.{$name}[index])" : "value.{$name}[index]") . ");";
 					$source .= <<<SOURCE
 
 		}
@@ -517,8 +518,8 @@ SOURCE;
 	return object;
 };
 
-{$this->type}.parse = function(value) {
-	return {$this->type}.fromObject(JSON.parse(value));
+{$this->message['type']}.parse = function(value) {
+	return {$this->message['type']}.fromObject(JSON.parse(value));
 };
 
 SOURCE;

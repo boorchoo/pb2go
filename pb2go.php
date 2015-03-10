@@ -2,6 +2,7 @@
 
 require 'classes/Token.php';
 require 'classes/Lexer.php';
+require 'classes/Registry.php';
 require 'classes/Parser.php';
 
 require 'classes/BaseGenerator.php';
@@ -95,46 +96,13 @@ if ($path) {
 	$path = realpath($_path);
 }
 
-if (empty($_mode) || $_mode == 'php-service' || $_mode == 'php-client') {
-	if (!file_exists("{$path}/classes")) {
-		mkdir("{$path}/classes");
-	}
-	if (!file_exists("{$path}/classes/JSONRPC")) {
-		mkdir("{$path}/classes/JSONRPC");
-	}
-}
-if (empty($_mode) || $_mode == 'php-service' || $_mode == 'js-client') {
-	if (!file_exists("{$path}/public")) {
-		mkdir("{$path}/public");
-	}
-}
-if (empty($_mode) || $_mode == 'js-client') {
-	if (!file_exists("{$path}/public/js")) {
-		mkdir("{$path}/public/js");
-	}
-}
-
-$parser = new Parser(file_get_contents($_file));
 try {
-	$proto = $parser->parse();
-	if (empty($proto['package'])) {
-		$pathinfo = pathinfo($_file);
-		$proto['package'] = $pathinfo['filename'];
-	}
+	Registry::init();
+	$parser = new Parser();
+	$proto = $parser->parse($_file);
 } catch (Exception $e) {
 	echo "ERROR: {$e->getMessage()}\n";
 	die();
-}
-
-$serviceGenerator = new ServiceGenerator($proto['package'], NULL, NULL);
-$namespace = $serviceGenerator->getPHPNamespace($proto['package']);
-$namespace_path = explode('\\', $namespace);
-$_path = $path . '/classes';
-foreach ($namespace_path as $_namespace_path) {
-	$_path .= '/' . $_namespace_path;
-	if (!file_exists($_path)) {
-		mkdir($_path);
-	}
 }
 
 $javaScriptSource = <<<SOURCE
@@ -142,35 +110,21 @@ $javaScriptSource = <<<SOURCE
 		
 SOURCE;
 
-$types = array(
-	'enums' => array(),
-	'messages' => array(),
-);
-global $types;
-
-foreach ($proto['enums'] as $type => $enum) {
-	$types['enums'][$type] = array();
-}
-
-foreach ($proto['messages'] as $type => $message) {
-	$types['messages'][$type] = array();
-}
-
-$serviceGenerator = new ServiceGenerator($proto['package'], NULL, NULL);
+$serviceGenerator = new ServiceGenerator(NULL, NULL, NULL);
 $javaScriptSource .= $serviceGenerator->generateJavaScriptJSONRPCSource();
 
-foreach ($proto['messages'] as $type => $message) {
-	$messageGenerator = new MessageGenerator($proto['package'], $type, $message);
+foreach ($proto['messages'] as $message) {
+	$messageGenerator = new MessageGenerator($message);
 	if (empty($_mode) || $_mode == 'php-service' || $_mode == 'php-client') {
-		output("{$path}/classes/" . str_replace('\\', '/', $messageGenerator->getPHPNamespace($proto['package'])) . '/' . str_replace('.', '_', $type) . ".php", $messageGenerator->generatePHPClassSource());
+		output("{$path}/classes/" . str_replace('\\', '/', $messageGenerator->getPHPNamespace($message['package'])) . '/' . str_replace('.', '_', $message['type']) . ".php", $messageGenerator->generatePHPClassSource());
 	}
 	$javaScriptSource .= $messageGenerator->generateJavaScriptClassSource();
 }
 
-foreach ($proto['enums'] as $type => $enum) {
-	$enumGenerator = new EnumGenerator($proto['package'], $type, $enum);
+foreach ($proto['enums'] as $enum) {
+	$enumGenerator = new EnumGenerator($enum);
 	if (empty($_mode) || $_mode == 'php-service' || $_mode == 'php-client') {
-		output("{$path}/classes/" . str_replace('\\', '/', $messageGenerator->getPHPNamespace($proto['package'])) . '/' . str_replace('.', '_', $type) . ".php", $enumGenerator->generatePHPClassSource());
+		output("{$path}/classes/" . str_replace('\\', '/', $enumGenerator->getPHPNamespace($enum['package'])) . '/' . str_replace('.', '_', $enum['type']) . ".php", $enumGenerator->generatePHPClassSource());
 	}
 	$javaScriptSource .= $enumGenerator->generateJavaScriptClassSource();
 }
@@ -213,42 +167,58 @@ if (empty($_mode) || $_mode == 'php-client') {
 	output("{$path}/classes/JSONRPC/Client.php", $serviceGenerator->generatePHPJSONRPCClientClassSource());
 }
 
-output("{$path}/public/{$proto['package']}.html", $serviceGenerator->generateHTMLSource($proto['package']));
+output("{$path}/public/output.html", $serviceGenerator->generateHTMLSource('output'));
 
-foreach ($proto['services'] as $serviceName => $service) {
-	$serviceGenerator = new ServiceGenerator($proto['package'], $serviceName, $service);
+foreach ($proto['services'] as $service) {
+	$serviceGenerator = new ServiceGenerator($service);
 	if (empty($_mode) || $_mode == 'php-service') {
-		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}.php", $serviceGenerator->generatePHPClassSource());
-		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}Configuration.php", $serviceGenerator->generatePHPConfigurationClassSource(), FALSE);
-		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}Authentication.php", $serviceGenerator->generatePHPAuthenticationClassSource(), FALSE);
-		output("{$path}/public/{$serviceName}.php", $serviceGenerator->generatePHPSource());
+		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($service['package'])) . '/' . "{$service['service']}.php", $serviceGenerator->generatePHPClassSource());
+		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($service['package'])) . '/' . "{$service['service']}Configuration.php", $serviceGenerator->generatePHPConfigurationClassSource(), FALSE);
+		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($service['package'])) . '/' . "{$service['service']}Authentication.php", $serviceGenerator->generatePHPAuthenticationClassSource(), FALSE);
+		output("{$path}/public/{$service['service']}.php", $serviceGenerator->generatePHPSource());
 	}
 	if (empty($_mode) || $_mode == 'php-client') {
-		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}Client.php", $serviceGenerator->generatePHPClientClassSource());
+		output("{$path}/classes/" . str_replace('\\', '/', $serviceGenerator->getPHPNamespace($service['package'])) . '/' . "{$service['service']}Client.php", $serviceGenerator->generatePHPClientClassSource());
 	}
 	foreach ($service['rpcs'] as $rpcName => $rpc) {
-		$rpcGenerator = new RpcGenerator($proto['package'], $serviceName, $rpcName, $rpc);
+		$rpcGenerator = new RpcGenerator($service, $rpcName, $rpc);
 		if (empty($_mode) || $_mode == 'php-service') {
-			output("{$path}/classes/" . str_replace('\\', '/', $messageGenerator->getPHPNamespace($proto['package'])) . '/' . "{$serviceName}_{$rpcName}.php", $rpcGenerator->generatePHPClassSource(), FALSE);
+			output("{$path}/classes/" . str_replace('\\', '/', $messageGenerator->getPHPNamespace($service['package'])) . '/' . "{$service['service']}_{$rpcName}.php", $rpcGenerator->generatePHPClassSource(), FALSE);
 		}
 	}
 	$javaScriptSource .= $serviceGenerator->generateJavaScriptSource();
 }
 
 if (empty($_mode) || $_mode == 'js-client') {
-	output("{$path}/public/js/{$proto['package']}.js", $javaScriptSource);
+	output("{$path}/public/js/output.js", $javaScriptSource);
 }
 
-function output($filePath, $contents, $update = TRUE) {
-	if (file_exists($filePath)) {
+function output($path, $contents, $update = TRUE) {
+	$parts = explode('/', $path);
+	$filename = array_pop($parts);
+	$_path = '';
+	foreach ($parts as $part) {
+		$_path .= "/{$part}";
+		if (file_exists($_path)) {
+			if (is_dir($_path)) {
+				continue;
+			}
+			echo "ERROR: Path {$_path} is not a directory\n";
+		}
+		$res = @mkdir($_path);
+		if ($res === FALSE) {
+			echo "ERROR: Failed to create {$_path}\n";
+		}
+	}
+	if (file_exists($path)) {
 		if ($update) {
-			file_put_contents($filePath, $contents);
-			echo "modified:\t{$filePath}\n";
+			file_put_contents($path, $contents);
+			echo "modified:\t{$path}\n";
 		} else {
-			echo "unchanged:\t{$filePath}\n";
+			echo "unchanged:\t{$path}\n";
 		}
 	} else {
-		file_put_contents($filePath, $contents);
-		echo "new file:\t{$filePath}\n";
+		file_put_contents($path, $contents);
+		echo "new file:\t{$path}\n";
 	}
 }

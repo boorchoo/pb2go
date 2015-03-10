@@ -2,19 +2,15 @@
 
 class ServiceGenerator extends BaseGenerator {
 	
-	protected $package;
-	protected $name;
 	protected $service;
 	
-	public function __construct($package, $name, $service) {
+	public function __construct($service) {
 		parent::__construct();
-		$this->package = $package;
-		$this->name = $name;
 		$this->service = $service;
 	}
 
 	public function generatePHPSource() {
-		$namespace = $this->getPHPNamespace($this->package);
+		$namespace = $this->getPHPNamespace($this->service['package']);
 		$source = <<<SOURCE
 <?php
 
@@ -24,7 +20,7 @@ spl_autoload_register(function (\$class) {
     include "../classes/" . str_replace('\\\\', '/', \$class) . ".php";
 });
 
-\$service = new {$namespace}\\{$this->name}();
+\$service = new {$namespace}\\{$this->service['service']}();
 \$service->run();
 
 SOURCE;
@@ -33,7 +29,7 @@ SOURCE;
 	}
 	
 	public function generatePHPClientClassSource() {
-		$namespace = $this->getPHPNamespace($this->package);
+		$namespace = $this->getPHPNamespace($this->service['package']);
 		$source = <<<SOURCE
 <?php
 
@@ -41,7 +37,7 @@ SOURCE;
 
 namespace {$namespace};
 
-class {$this->name}Client extends \JSONRPC\Client {
+class {$this->service['service']}Client extends \JSONRPC\Client {
 
 	public function __construct(\$url) {
 		parent::__construct(\$url);
@@ -50,10 +46,15 @@ class {$this->name}Client extends \JSONRPC\Client {
 SOURCE;
 		if (!empty($this->service['rpcs'])) {
 			foreach ($this->service['rpcs'] as $rpcName => $rpc) {
+				$returnsType = Registry::getType($rpc['returns']);
+				$returns = str_replace('.', '_', $returnsType['name']);
+				if ($this->service['package'] !== $returnsType['package']) {
+					$returns = (empty($returnsType['package']) ? '' : '\\' . $this->getPHPNamespace($returnsType['package'])) . '\\' . $returns;
+				}
 				$source .= <<<SOURCE
 
 	public function {$rpcName}(\$params) {
-		return {$rpc['returns']}::fromStdClass(\$this->invoke('{$rpcName}', \$params->toStdClass()));
+		return {$returns}::fromStdClass(\$this->invoke('{$rpcName}', \$params->toStdClass()));
 	}
 
 SOURCE;
@@ -69,7 +70,7 @@ SOURCE;
 	}
 	
 	public function generatePHPClassSource() {
-		$namespace = $this->getPHPNamespace($this->package);
+		$namespace = $this->getPHPNamespace($this->service['package']);
 		$source = <<<SOURCE
 <?php
 
@@ -77,20 +78,26 @@ SOURCE;
 
 namespace {$namespace};
 
-class {$this->name} extends \JSONRPC\Service {
+class {$this->service['service']} extends \JSONRPC\Service {
 
 	public function __construct() {
 		parent::__construct();
 
-		\$this->setConfigurationClass('{$namespace}\\{$this->name}Configuration');
-		\$this->setAuthenticationClass('{$namespace}\\{$this->name}Authentication');
+		\$this->setConfigurationClass('\\{$namespace}\\{$this->service['service']}Configuration');
+		\$this->setAuthenticationClass('\\{$namespace}\\{$this->service['service']}Authentication');
 
 SOURCE;
 		if (!empty($this->service['rpcs'])) {
 			foreach ($this->service['rpcs'] as $rpcName => $rpc) {
+				$typeType = Registry::getType($rpc['type']);
+				$type = (empty($typeType['package']) ? '' : '\\' . $this->getPHPNamespace($typeType['package']))
+					. '\\' . str_replace('.', '_', $typeType['name']);
+				$returnsType = Registry::getType($rpc['returns']);
+				$returns = (empty($returnsType['package']) ? '' : '\\' . $this->getPHPNamespace($returnsType['package']))
+					. '\\' . str_replace('.', '_', $returnsType['name']);
 				$source .= <<<SOURCE
 
-		\$this->registerMethod('{$rpcName}', '{$namespace}\\{$this->name}_{$rpcName}', '{$namespace}\\{$rpc['type']}', '{$namespace}\\{$rpc['returns']}');
+		\$this->registerMethod('{$rpcName}', '\\{$namespace}\\{$this->service['service']}_{$rpcName}', '{$type}', '{$returns}');
 SOURCE;
 			}
 			$source .= "\n";
@@ -106,13 +113,13 @@ SOURCE;
 	}
 
 	public function generatePHPConfigurationClassSource() {
-		$namespace = $this->getPHPNamespace($this->package);
+		$namespace = $this->getPHPNamespace($this->service['package']);
 		$source = <<<SOURCE
 <?php
 
 namespace {$namespace};
 
-class {$this->name}Configuration extends \JSONRPC\Configuration {
+class {$this->service['service']}Configuration extends \JSONRPC\Configuration {
 
 	public function __construct() {
 		parent::__construct();
@@ -126,13 +133,13 @@ SOURCE;
 	}
 
 	public function generatePHPAuthenticationClassSource() {
-		$namespace = $this->getPHPNamespace($this->package);
+		$namespace = $this->getPHPNamespace($this->service['package']);
 		$source = <<<SOURCE
 <?php
 
 namespace {$namespace};
 
-class {$this->name}Authentication extends \JSONRPC\Authentication {
+class {$this->service['service']}Authentication extends \JSONRPC\Authentication {
 
 	public function __construct(\$config) {
 		parent::__construct(\$config);
@@ -950,7 +957,7 @@ SOURCE;
 	public function generateJavaScriptSource() {
 		$source = <<<SOURCE
 
-{$this->name} = function() {
+{$this->service['service']} = function() {
 	var id = 0;
 
 	getId = function() {
@@ -964,18 +971,19 @@ SOURCE;
 
 SOURCE;
 		foreach ($this->service['rpcs'] as $rpcName => $rpc) {
+			$returnsType = Registry::getType($rpc['returns']);
 			$source .= <<<SOURCE
 	this.{$rpcName} = function(params, resultHandler, errorHandler) {
 		var request = new JSONRPC.Request();
 		request.setMethod('$rpcName');
 		request.setParams(params.toObject());
 		request.setId(getId());
-		JSONRPC.send('/{$this->name}.php', request.serialize(),
+		JSONRPC.send('/{$this->service['service']}.php', request.serialize(),
 			function(result) {
 				if (typeof resultHandler === 'undefined') {
 					return;
 				}
-				resultHandler({$rpc['returns']}.fromObject(result));
+				resultHandler({$returnsType['name']}.fromObject(result));
 			},
 			function(error) {
 				if (typeof errorHandler === 'undefined') {
@@ -1266,7 +1274,7 @@ SOURCE;
 		return $source;
 	}
 	
-	public function generateHTMLSource($package = 'default') {
+	public function generateHTMLSource($package = 'output') {
 		$source = <<<SOURCE
 <!DOCTYPE html>
 <!-- DO NOT MANUALLY EDIT THIS FILE -->
