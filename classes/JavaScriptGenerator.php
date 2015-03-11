@@ -7,6 +7,8 @@ class JavaScriptGenerator extends AbstractGenerator {
 	}
 	
 	public function generate($path) {
+		echo "Generating JavaScript files...\n";
+		
 		$source = <<<SOURCE
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
 

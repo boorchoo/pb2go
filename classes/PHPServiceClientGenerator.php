@@ -7,6 +7,8 @@ class PHPServiceClientGenerator extends PHPGenerator {
 	}
 
 	public function generate($path) {
+		echo "Generating PHP service client files...\n";
+		
 		$source = $this->generateClientClassSource();
 		$filepath = "{$path}/classes/JSONRPC/Client.php";
 		$res = $this->output($filepath, $source);

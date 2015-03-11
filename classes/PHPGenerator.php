@@ -15,6 +15,8 @@ class PHPGenerator extends AbstractGenerator {
 	}
 	
 	public function generate($path) {
+		echo "Generating PHP files...\n";
+		
 		$source = $this->generateRequestClassSource();
 		$filepath = "{$path}/classes/JSONRPC/Request.php";
 		$res = $this->output($filepath, $source);

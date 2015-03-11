@@ -7,6 +7,8 @@ class PHPServiceGenerator extends PHPGenerator {
 	}
 
 	public function generate($path) {
+		echo "Generating PHP service files...\n";
+		
 		$source = $this->generateServiceClassSource();
 		$filepath = "{$path}/classes/JSONRPC/Service.php";
 		$res = $this->output($filepath, $source);
