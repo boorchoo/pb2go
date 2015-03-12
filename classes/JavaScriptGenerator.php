@@ -16,16 +16,69 @@ SOURCE;
 		
 		$source .= $this->generateJSONRPCSource();
 		
-		foreach ($this->proto['enums'] as $enum) {
-			$source .= $this->generateEnumSource($enum);
-		}
-		
+		$packages = array();
 		foreach ($this->proto['messages'] as $message) {
-			$source .= $this->generateMessageSource($message);
+			if (!in_array($message['package'], $packages)) {
+				array_push($packages, $message['package']);
+			}
 		}
-		
+		foreach ($this->proto['enums'] as $enum) {
+			if (!in_array($enum['package'], $packages)) {
+				array_push($packages, $enum['package']);
+			}
+		}
 		foreach ($this->proto['services'] as $service) {
-			$source .= $this->generateServiceSource($service);
+			if (!in_array($service['package'], $packages)) {
+				array_push($packages, $service['package']);
+			}
+		}
+		foreach ($packages as $package) {
+			$parts = explode('.', $package);
+			$module = array_pop($parts);
+			if (!empty($parts)) {
+				$source .= <<<SOURCE
+
+var {$parts[0]} = (function(\$this) {
+	return \$this;
+}({$parts[0]} || {}));
+
+
+SOURCE;
+			} else {
+				$source .= <<<SOURCE
+				
+var 
+SOURCE;
+			}
+			$source .= <<<SOURCE
+{$package} = (function(\$this) {
+
+SOURCE;
+			
+			foreach ($this->proto['messages'] as $message) {
+				if ($message['package'] === $package) {
+					$source .= $this->generateMessageSource($message);
+				}
+			}
+			
+			foreach ($this->proto['enums'] as $enum) {
+				if ($enum['package'] === $package) {
+					$source .= $this->generateEnumSource($enum);
+				}
+			}
+			
+			foreach ($this->proto['services'] as $service) {
+				if ($service['package'] === $package) {
+					$source .= $this->generateServiceSource($service);
+				}
+			}
+			
+		$source .= <<<SOURCE
+
+	return \$this;
+}({$package} || {}));
+
+SOURCE;
 		}
 		
 		$filepath = "{$path}/public/js/output.js";
@@ -45,8 +98,10 @@ SOURCE;
 	public function generateJSONRPCSource() {
 		$source = <<<'SOURCE'
 
-var JSONRPC = (function (JSONRPC) {
-	Request = function() {
+var JSONRPC = (function($this) {
+
+	var Request = function() {
+
 		var jsonrpc = '2.0';
 		var method = null;
 		var params = null;
@@ -108,6 +163,7 @@ var JSONRPC = (function (JSONRPC) {
 		this.serialize = function() {
 			return JSON.stringify(this.toObject());
 		};
+
 	};
 
 	Request.fromObject = function(value) {
@@ -131,7 +187,10 @@ var JSONRPC = (function (JSONRPC) {
 		return Request.fromObject(JSON.parse(value));
 	};
 
-	Response = function() {
+	$this.Request = Request;
+
+	var Response = function() {
+
 		var jsonrpc = '2.0';
 		var result = null;
 		var error = null;
@@ -192,6 +251,7 @@ var JSONRPC = (function (JSONRPC) {
 		this.serialize = function() {
 			return JSON.stringify(this.toObject());
 		};
+
 	};
 
 	Response.fromObject = function(value) {
@@ -215,7 +275,10 @@ var JSONRPC = (function (JSONRPC) {
 		return Response.fromObject(JSON.parse(value));
 	};
 
+	$this.Response = Response;
+
 	Response.Error = function() {
+
 		var code = null;
 		var message = null;
 		var data = null;
@@ -261,6 +324,7 @@ var JSONRPC = (function (JSONRPC) {
 		this.serialize = function() {
 			return JSON.stringify(this.toObject());
 		};
+
 	};
 
 	Response.Error.fromObject = function(value) {
@@ -281,10 +345,7 @@ var JSONRPC = (function (JSONRPC) {
 		return Response.Error.fromObject(JSON.parse(value));
 	};
 
-	JSONRPC.Request = Request;
-	JSONRPC.Response = Response;
-
-	JSONRPC.send = function(url, data, resultHandler, errorHandler) {
+	$this.send = function(url, data, resultHandler, errorHandler) {
 		console.log(data);
 		var xhr = new XMLHttpRequest();
 		xhr.open('POST', url, true);
@@ -292,7 +353,7 @@ var JSONRPC = (function (JSONRPC) {
 			if (xhr.readyState === 4) {
 				if (xhr.status === 200) {
 					console.log(xhr.responseText);
-					var response = JSONRPC.Response.parse(xhr.responseText);
+					var response = Response.parse(xhr.responseText);
 					if (response.hasError()) {
 						errorHandler(response.getError());
 					} else {
@@ -304,7 +365,7 @@ var JSONRPC = (function (JSONRPC) {
 		xhr.send(data);
 	};
 
-	return JSONRPC;
+	return $this;
 }(JSONRPC || {}));
 
 SOURCE;
@@ -314,16 +375,16 @@ SOURCE;
 	public function generateEnumSource($enum) {
 		$source = <<<SOURCE
 
-{$enum['type']} = {
+	{$enum['type']} = {
 
 SOURCE;
 		foreach ($enum['values'] as $name => $value) {
-			$source .= "	{$name}: {$value},\n";
+			$source .= "		{$name}: {$value},\n";
 		}
 		$source = substr($source, 0, strlen($source) - 2);
 		$source .= <<<SOURCE
 
-};
+	};
 
 SOURCE;
 		return $source;
@@ -349,13 +410,15 @@ SOURCE;
 	}
 	
 	public function generateMessageSource($message) {
+		$var = strpos($message['type'], '.') === FALSE ? 'var ' : ''; 
 		$source = <<<SOURCE
 
-{$message['type']} = function() {
+	{$var}{$message['type']} = function() {
+
 
 SOURCE;
 		foreach ($message['fields'] as $name => $field) {
-			$source .= "	var {$name} = " . ($field['rule'] == 'repeated' ? '[]' : 'null') . ";\n";
+			$source .= "		var {$name} = " . ($field['rule'] == 'repeated' ? '[]' : 'null') . ";\n";
 		}
 		$source .= "\n";
 		foreach ($message['fields'] as $name => $field) {
@@ -364,56 +427,56 @@ SOURCE;
 				case 'required':
 				case 'optional':
 					$source .= <<<SOURCE
-	this.has{$methodName} = function() {
-		return null !== {$name};
-	};
+		this.has{$methodName} = function() {
+			return null !== {$name};
+		};
 
-	this.get{$methodName} = function() {
+		this.get{$methodName} = function() {
 
 SOURCE;
-					$source .= isset($field['options']['default']) ? "		return this.has{$methodName}() ? {$name} : "
-						. $this->getFieldDefaultValueSource($message, $field) . ";\n" : "		return {$name};\n";
+					$source .= isset($field['options']['default']) ? "			return this.has{$methodName}() ? {$name} : "
+						. $this->getFieldDefaultValueSource($message, $field) . ";\n" : "			return {$name};\n";
 					$source .= <<<SOURCE
-	};
+		};
 
-	this.set{$methodName} = function(value) {
-		{$name} = value;
-	};
+		this.set{$methodName} = function(value) {
+			{$name} = value;
+		};
 
 
 SOURCE;
 					break;
 				case 'repeated':
 					$source .= <<<SOURCE
-	this.get{$methodName}Count = function() {
-		return {$name}.length;
-	};
+		this.get{$methodName}Count = function() {
+			return {$name}.length;
+		};
 
-	this.get{$methodName} = function(index) {
-		return typeof {$name}[index] === 'undefined' ? null : {$name}[index];
-	};
+		this.get{$methodName} = function(index) {
+			return typeof {$name}[index] === 'undefined' ? null : {$name}[index];
+		};
 
-	this.get{$methodName}Array = function() {
-		return {$name};
-	};
+		this.get{$methodName}Array = function() {
+			return {$name};
+		};
 
-	this.set{$methodName} = function(index, value) {
-		{$name}[index] = value;
-	};
+		this.set{$methodName} = function(index, value) {
+			{$name}[index] = value;
+		};
 
-	this.add{$methodName} = function(value) {
-		{$name}.push(value);
-	};
+		this.add{$methodName} = function(value) {
+			{$name}.push(value);
+		};
 
-	this.addAll{$methodName} = function(values) {
-		for (var index in values) {
-			this.add{$methodName}(values[index]);
-		}
-	};
+		this.addAll{$methodName} = function(values) {
+			for (var index in values) {
+				this.add{$methodName}(values[index]);
+			}
+		};
 
-	this.clear{$methodName} = function() {
-		{$name} = [];
-	};
+		this.clear{$methodName} = function() {
+			{$name} = [];
+		};
 
 
 SOURCE;
@@ -423,30 +486,30 @@ SOURCE;
 			}
 		}
 		$source .= <<<SOURCE
-	this.isInitialized = function() {
+		this.isInitialized = function() {
 
 SOURCE;
 		foreach ($message['fields'] as $name => $field) {
 			if ($field['rule'] == 'required') {
 				$methodName = $this->toCamelCase($name);
 				$source .= <<<SOURCE
-		if (!this.has{$methodName}()) {
-			return false;
-		}
+			if (!this.has{$methodName}()) {
+				return false;
+			}
 
 SOURCE;
 			}
 		}
 		$source .= <<<SOURCE
-		return true;
-	};
+			return true;
+		};
 
-	this.toObject = function(includeAllFields) {
-		if (typeof includeAllFields === 'undefined') {
-			includeAllFields = false;
-		}
+		this.toObject = function(includeAllFields) {
+			if (typeof includeAllFields === 'undefined') {
+				includeAllFields = false;
+			}
 
-		var value = new Object();
+			var value = new Object();
 SOURCE;
 		foreach ($message['fields'] as $name => $field) {
 			$methodName = $this->toCamelCase($name);
@@ -456,28 +519,28 @@ SOURCE;
 				case 'optional':
 					$source .= <<<SOURCE
 	
-		if (includeAllFields || this.has{$methodName}()) {
+			if (includeAllFields || this.has{$methodName}()) {
 	
 SOURCE;
-					$source .= "			value.{$name} = " . (Registry::isMessageType($field['type']) ?
+					$source .= "				value.{$name} = " . (Registry::isMessageType($field['type']) ?
 						"this.get{$methodName}() === null ? null : this.get{$methodName}().toObject(includeAllFields)" : "this.get{$methodName}()") . ";";
 					break;
 				case 'repeated':
 					$source .= <<<SOURCE
 
-		if (includeAllFields || this.get{$methodName}Count() > 0) {
+			if (includeAllFields || this.get{$methodName}Count() > 0) {
 
 SOURCE;
 					$source .= <<<SOURCE
-			value.{$name} = [];
-			for (var index in this.get{$methodName}Array()) {
+				value.{$name} = [];
+				for (var index in this.get{$methodName}Array()) {
 
 SOURCE;
-					$source .= "				value.{$name}.push(this.get{$methodName}(index)" . (Registry::isMessageType($field['type']) ?
+					$source .= "					value.{$name}.push(this.get{$methodName}(index)" . (Registry::isMessageType($field['type']) ?
 						'.toObject(includeAllFields)' : '') . ");";
 					$source .= <<<SOURCE
 
-			}
+				}
 SOURCE;
 					break;
 				default:
@@ -485,21 +548,22 @@ SOURCE;
 			}
 			$source .= <<<SOURCE
 
-		}
+			}
 SOURCE;
 		}
 		$source .= <<<SOURCE
 
-		return value;
+			return value;
+		};
+
+		this.serialize = function() {
+			return JSON.stringify(this.toObject());
+		};
+
 	};
 
-	this.serialize = function() {
-		return JSON.stringify(this.toObject());
-	};
-};
-
-{$message['type']}.fromObject = function(value) {
-	var object = new {$message['type']}();
+	{$message['type']}.fromObject = function(value) {
+		var object = new {$message['type']}();
 SOURCE;
 		foreach ($message['fields'] as $name => $field) {
 			$methodName = $this->toCamelCase($name);
@@ -509,27 +573,27 @@ SOURCE;
 				case 'optional':
 					$source .= <<<SOURCE
 
-	if (typeof value.{$name} !== 'undefined') {
+		if (typeof value.{$name} !== 'undefined') {
 
 SOURCE;
-					$source .= "		object.set{$methodName}(" . (Registry::isMessageType($field['type']) ?
+					$source .= "			object.set{$methodName}(" . (Registry::isMessageType($field['type']) ?
 						"{$type['name']}.fromObject(value.{$name})" : "value.{$name}") . ");";
 					break;
 				case 'repeated':
 					$source .= <<<SOURCE
 
-	if ((typeof value.{$name} !== 'undefined') && (value.{$name} instanceof Array)) {
+		if ((typeof value.{$name} !== 'undefined') && (value.{$name} instanceof Array)) {
 
 SOURCE;
 					$source .= <<<SOURCE
-		for (var index in value.{$name}) {
+			for (var index in value.{$name}) {
 
 SOURCE;
-					$source .= "			object.add{$methodName}(" . (Registry::isMessageType($field['type']) ?
+					$source .= "				object.add{$methodName}(" . (Registry::isMessageType($field['type']) ?
 						"{$type['name']}.fromObject(value.{$name}[index])" : "value.{$name}[index]") . ");";
 					$source .= <<<SOURCE
 	
-		}
+			}
 SOURCE;
 					break;
 				default:
@@ -537,66 +601,77 @@ SOURCE;
 			}
 			$source .= <<<SOURCE
 
-	}
+		}
 SOURCE;
 		}
 		$source .= <<<SOURCE
 
-	return object;
-};
+		return object;
+	};
 
-{$message['type']}.parse = function(value) {
-	return {$message['type']}.fromObject(JSON.parse(value));
-};
+	{$message['type']}.parse = function(value) {
+		return {$message['type']}.fromObject(JSON.parse(value));
+	};
 
 SOURCE;
+		if (strpos($message['type'], '.') === FALSE) {
+			$source .= <<<SOURCE
+
+	\$this.{$message['type']} = {$message['type']};
+
+SOURCE;
+		}
 		return $source;
 	}
 
 	public function generateServiceSource($service) {
 		$source = <<<SOURCE
 
-{$service['service']} = function() {
-	var id = 0;
+	var {$service['service']} = function() {
 
-	getId = function() {
-		return ++id;
-	};
+		var id = 0;
 
-	this.getLastId = function() {
-		return id;
-	};
+		getId = function() {
+			return ++id;
+		};
+
+		this.getLastId = function() {
+			return id;
+		};
 
 
 SOURCE;
 		foreach ($service['rpcs'] as $rpcName => $rpc) {
 			$returnsType = Registry::getType($rpc['returns']);
 			$source .= <<<SOURCE
-	this.{$rpcName} = function(params, resultHandler, errorHandler) {
-		var request = new JSONRPC.Request();
-		request.setMethod('$rpcName');
-		request.setParams(params.toObject());
-		request.setId(getId());
-		JSONRPC.send('/{$service['service']}.php', request.serialize(),
-			function(result) {
-				if (typeof resultHandler === 'undefined') {
-					return;
+		this.{$rpcName} = function(params, resultHandler, errorHandler) {
+			var request = new JSONRPC.Request();
+			request.setMethod('$rpcName');
+			request.setParams(params.toObject());
+			request.setId(getId());
+			JSONRPC.send('/{$service['service']}.php', request.serialize(),
+				function(result) {
+					if (typeof resultHandler === 'undefined') {
+						return;
+					}
+					resultHandler({$returnsType['name']}.fromObject(result));
+				},
+				function(error) {
+					if (typeof errorHandler === 'undefined') {
+						return;
+					}
+					errorHandler(error);
 				}
-				resultHandler({$returnsType['name']}.fromObject(result));
-			},
-			function(error) {
-				if (typeof errorHandler === 'undefined') {
-					return;
-				}
-				errorHandler(error);
-			}
-		);
-	};
+			);
+		};
+
 
 SOURCE;
 		}
-		$source .= <<<'SOURCE'
-};
+		$source .= <<<SOURCE
+	};
+
+	\$this.{$service['service']} = {$service['service']};
 
 SOURCE;
 		return $source;
