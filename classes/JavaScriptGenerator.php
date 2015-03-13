@@ -71,7 +71,7 @@ SOURCE;
 			
 			foreach ($this->proto['services'] as $service) {
 				if ($service['package'] === $package) {
-					$_source .= $this->generateServiceSource($service);
+					$_source .= $this->generateServiceClientSource($service);
 				}
 			}
 			if (!empty($package)) {
@@ -355,25 +355,74 @@ var JSONRPC = (function($this) {
 		return Response.Error.fromObject(JSON.parse(value));
 	};
 
-	$this.send = function(url, data, resultHandler, errorHandler) {
-		console.log(data);
-		var xhr = new XMLHttpRequest();
-		xhr.open('POST', url, true);
-		xhr.onreadystatechange = function () {
-			if (xhr.readyState === 4) {
-				if (xhr.status === 200) {
-					console.log(xhr.responseText);
-					var response = Response.parse(xhr.responseText);
-					if (response.hasError()) {
-						errorHandler(response.getError());
-					} else {
-						resultHandler(response.getResult());
+	var Client = function(_url) {
+
+		var url = _url;
+		var requestHeaders = [];
+		var id = 0;
+
+		this.getURL = function() {
+			return url;
+		}
+
+		this.hasRequestHeader = function(header) {
+			return typeof requestHeaders[header] === 'undefined' ? false : true;
+		}
+
+		this.getRequestHeader = function(header) {
+			return typeof requestHeaders[header] === 'undefined' ? null : requestHeaders[header];
+		}
+
+		this.setRequestHeader = function(header, value) {
+			if (typeof value === 'undefined' || value === null) {
+				clearRequestHeader(header);
+			} else {
+				requestHeaders[header] = value;
+			}
+		}
+
+		this.clearRequestHeader = function(header) {
+			if (hasRequestHeader(header)) {
+				delete requestHeaders[header];
+			}
+		}
+
+		getId = function() {
+			return ++id;
+		};
+
+		this.getLastId = function() {
+			return id;
+		};
+
+		this.invoke = function(method, params, resultHandler, errorHandler) {
+			var request = new JSONRPC.Request();
+			request.setMethod(method);
+			request.setParams(params.toObject());
+			request.setId(getId());
+			var xhr = new XMLHttpRequest();
+			xhr.open('POST', url, true);
+			for (var header in requestHeaders) {
+				xhr.setRequestHeader(header, requestHeaders[header]);
+			}
+			xhr.onreadystatechange = function () {
+				if (xhr.readyState === 4) {
+					if (xhr.status === 200) {
+						var response = Response.parse(xhr.responseText);
+						if (response.hasError()) {
+							errorHandler(response.getError());
+						} else {
+							resultHandler(response.getResult());
+						}
 					}
 				}
-			}
+			};
+			xhr.send(request.serialize());
 		};
-		xhr.send(data);
+
 	};
+
+	$this.Client = Client;
 
 	return $this;
 }(JSONRPC || {}));
@@ -642,20 +691,13 @@ SOURCE;
 		return $source;
 	}
 
-	public function generateServiceSource($service) {
+	public function generateServiceClientSource($service) {
 		$source = <<<SOURCE
 
-	var {$service['service']} = function() {
+	var {$service['service']}Client = function(_url) {
 
-		var id = 0;
-
-		getId = function() {
-			return ++id;
-		};
-
-		this.getLastId = function() {
-			return id;
-		};
+		this.base = JSONRPC.Client;
+		this.base(_url);
 
 
 SOURCE;
@@ -664,11 +706,7 @@ SOURCE;
 			$returns = ($returnsType['package'] === $service['package'] ? '' : "{$returnsType['package']}.") . $returnsType['name'];
 			$source .= <<<SOURCE
 		this.{$rpcName} = function(params, resultHandler, errorHandler) {
-			var request = new JSONRPC.Request();
-			request.setMethod('$rpcName');
-			request.setParams(params.toObject());
-			request.setId(getId());
-			JSONRPC.send('/{$service['service']}.php', request.serialize(),
+			this.invoke('$rpcName', params,
 				function(result) {
 					if (typeof resultHandler === 'undefined') {
 						return;
@@ -689,12 +727,13 @@ SOURCE;
 		}
 		$source .= <<<SOURCE
 	};
+	{$service['service']}Client.prototype = new JSONRPC.Client;
 
 SOURCE;
 		if (!empty($service['package'])) {
 			$source .= <<<SOURCE
 
-	\$this.{$service['service']} = {$service['service']};
+	\$this.{$service['service']}Client = {$service['service']}Client;
 
 SOURCE;
 		}
