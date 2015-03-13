@@ -2,8 +2,8 @@
 
 class PHPServiceClientGenerator extends PHPGenerator {
 
-	public function __construct($proto) {
-		parent::__construct($proto);
+	public function __construct($fileName, $proto) {
+		parent::__construct($fileName, $proto);
 	}
 
 	public function generate($path) {

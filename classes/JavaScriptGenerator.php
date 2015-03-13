@@ -2,8 +2,8 @@
 
 class JavaScriptGenerator extends AbstractGenerator {
 	
-	public function __construct($proto) {
-		parent::__construct($proto);
+	public function __construct($fileName, $proto) {
+		parent::__construct($fileName, $proto);
 	}
 	
 	public function generate($path) {
@@ -81,14 +81,14 @@ SOURCE;
 SOURCE;
 		}
 		
-		$filepath = "{$path}/public/js/output.js";
+		$filepath = "{$path}/public/js/{$this->fileName}.js";
 		$res = $this->output($filepath, $source);
 		if ($res) {
 			echo "{$filepath}\n";
 		}
 		
-		$source = $this->generateHTMLSource('output');
-		$filepath = "{$path}/public/output.html";
+		$source = $this->generateHTMLSource();
+		$filepath = "{$path}/public/{$this->fileName}.html";
 		$res = $this->output($filepath, $source);
 		if ($res) {
 			echo "{$filepath}\n";
@@ -373,9 +373,10 @@ SOURCE;
 	}
 
 	public function generateEnumSource($enum) {
+		$var = strpos($enum['type'], '.') === FALSE ? 'var ' : '';
 		$source = <<<SOURCE
 
-	{$enum['type']} = {
+	{$var}{$enum['type']} = {
 
 SOURCE;
 		foreach ($enum['values'] as $name => $value) {
@@ -387,6 +388,13 @@ SOURCE;
 	};
 
 SOURCE;
+		if (strpos($enum['type'], '.') === FALSE) {
+			$source .= <<<SOURCE
+		
+	\$this.{$enum['type']} = {$enum['type']};
+		
+SOURCE;
+		}
 		return $source;
 	}
 	
@@ -403,7 +411,7 @@ SOURCE;
 				$source = "{$field['options']['default']}";
 				break;
 			default:
-				$source = Registry::isEnumType($field['type']) ? "{$type['name']}.{$field['options']['default']}" : 'null';
+				$source = Registry::isEnumType($field['type']) ? ($type['package'] === $message['package'] ? '' : "{$type['package']}.") . "{$type['name']}.{$field['options']['default']}" : 'null';
 				break;
 		}
 		return $source;
@@ -577,7 +585,7 @@ SOURCE;
 
 SOURCE;
 					$source .= "			object.set{$methodName}(" . (Registry::isMessageType($field['type']) ?
-						"{$type['name']}.fromObject(value.{$name})" : "value.{$name}") . ");";
+						($type['package'] === $message['package'] ? '' : "{$type['package']}.") . "{$type['name']}.fromObject(value.{$name})" : "value.{$name}") . ");";
 					break;
 				case 'repeated':
 					$source .= <<<SOURCE
@@ -590,7 +598,7 @@ SOURCE;
 
 SOURCE;
 					$source .= "				object.add{$methodName}(" . (Registry::isMessageType($field['type']) ?
-						"{$type['name']}.fromObject(value.{$name}[index])" : "value.{$name}[index]") . ");";
+						($type['package'] === $message['package'] ? '' : "{$type['package']}.") . "{$type['name']}.fromObject(value.{$name}[index])" : "value.{$name}[index]") . ");";
 					$source .= <<<SOURCE
 	
 			}
@@ -643,6 +651,7 @@ SOURCE;
 SOURCE;
 		foreach ($service['rpcs'] as $rpcName => $rpc) {
 			$returnsType = Registry::getType($rpc['returns']);
+			$returns = ($returnsType['package'] === $service['package'] ? '' : "{$returnsType['package']}.") . $returnsType['name'];
 			$source .= <<<SOURCE
 		this.{$rpcName} = function(params, resultHandler, errorHandler) {
 			var request = new JSONRPC.Request();
@@ -654,7 +663,7 @@ SOURCE;
 					if (typeof resultHandler === 'undefined') {
 						return;
 					}
-					resultHandler({$returnsType['name']}.fromObject(result));
+					resultHandler({$returns}.fromObject(result));
 				},
 				function(error) {
 					if (typeof errorHandler === 'undefined') {
@@ -677,15 +686,15 @@ SOURCE;
 		return $source;
 	}
 
-	public function generateHTMLSource($filename) {
+	public function generateHTMLSource() {
 		$source = <<<SOURCE
 <!DOCTYPE html>
 <!-- DO NOT MANUALLY EDIT THIS FILE -->
 <html>
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-    <title>{$filename}</title>
-    <script type="text/javascript" src="js/{$filename}.js"></script>
+    <title>{$this->fileName}</title>
+    <script type="text/javascript" src="js/{$this->fileName}.js"></script>
   </head>
   <body>
   </body>

@@ -2,9 +2,11 @@
 
 abstract class AbstractGenerator {
 	
+	protected $fileName;
 	protected $proto;
 	
-	protected function __construct($proto) {
+	protected function __construct($fileName, $proto) {
+		$this->fileName = $fileName;
 		$this->proto = $proto;
 	}
 	

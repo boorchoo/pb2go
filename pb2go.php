@@ -65,16 +65,17 @@ if (empty($_file) || (!empty($_mode) && !in_array($_mode, $modes))) {
 	echo "\n";
 	die();
 }
-if (empty($_path)) {
-	$_path = './output';
-}
 
 $file = realpath($_file);
 if (!$file) {
 	echo "ERROR: File {$_file} not found\n";
 	die();
 }
+$fileName = pathinfo($file, PATHINFO_FILENAME);
 
+if (empty($_path)) {
+	$_path = "./{$fileName}";
+}
 $path = realpath($_path);
 if ($path) {
 	if (!is_dir($path)) {
@@ -93,19 +94,19 @@ try {
 	$proto = $parser->parse($_file);
 
 	if (empty($_mode) || $_mode == 'php-service' || $_mode == 'php-service-client') {
-		$phpGenerator = new PHPGenerator($proto);
+		$phpGenerator = new PHPGenerator($fileName, $proto);
 		$phpGenerator->generate($path);
 	}
 	if (empty($_mode) || $_mode == 'php-service') {
-		$phpServiceGenerator = new PHPServiceGenerator($proto);
+		$phpServiceGenerator = new PHPServiceGenerator($fileName, $proto);
 		$phpServiceGenerator->generate($path);
 	}
 	if (empty($_mode) || $_mode == 'php-service-client') {
-		$phpServiceClientGenerator = new PHPServiceClientGenerator($proto);
+		$phpServiceClientGenerator = new PHPServiceClientGenerator($fileName, $proto);
 		$phpServiceClientGenerator->generate($path);
 	}
 	if (empty($_mode) || $_mode == 'javascript') {
-		$javaScriptGenerator = new JavaScriptGenerator($proto);
+		$javaScriptGenerator = new JavaScriptGenerator($fileName, $proto);
 		$javaScriptGenerator->generate($path);
 	}
 } catch (Exception $e) {
