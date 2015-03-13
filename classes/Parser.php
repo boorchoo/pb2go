@@ -40,7 +40,7 @@ class Parser {
 		}
 	
 		$_currentType = $this->currentType;
-		$_type = empty($_currentType) ? ((empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . $type) : (empty($this->currentPackage) ? '' : ("{$this->currentPackage}.") . implode('.', $_currentType) . ".{$type}");
+		$_type = (empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . (empty($_currentType) ? '' : (implode('.', $_currentType) . ".")) . $type;
 		do {
 			$registeredType = Registry::getType($_type);
 			if (!empty($registeredType)) {
@@ -50,7 +50,7 @@ class Parser {
 				throw new Exception("[{$this->getFile()}] Found undefined type {$type}");
 			}
 			array_pop($_currentType);
-			$_type = empty($_currentType) ? ((empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . $type) : (empty($this->currentPackage) ? '' : ("{$this->currentPackage}.") . implode('.', $_currentType) . ".{$type}");
+			$_type = (empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . (empty($_currentType) ? '' : (implode('.', $_currentType) . ".")) . $type;
 		} while (1);
 	}
 
@@ -77,14 +77,21 @@ class Parser {
 		}
 		array_push($this->files, $file);
 		array_push($this->lexers, new Lexer($text));
+		$canImport = TRUE;
 		
 		while ($this->getLexer()) {
 			while ($token = $this->getNextToken()) {
 				if ($token->getType() !== Lexer::KEYWORD) {
 					throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::KEYWORD . " but found {$token->getType()} => {$token->getText()}");
 				}
+				if ($token->getText() !== 'import') {
+					$canImport = FALSE;
+				}
 				switch ($token->getText()) {
 					case 'import':
+						if (!$canImport) {
+							throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
+						}
 						$this->parseImport();
 						break;
 					case 'package':
@@ -111,6 +118,9 @@ class Parser {
 			}
 			array_pop($this->files);
 			array_pop($this->lexers);
+			$this->currentPackage = NULL;
+			$this->currentType = array();
+			$canImport = TRUE;
 		}
 		return $this->proto;
 	}

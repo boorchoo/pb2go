@@ -33,10 +33,11 @@ SOURCE;
 			}
 		}
 		foreach ($packages as $package) {
-			$parts = explode('.', $package);
-			$module = array_pop($parts);
-			if (!empty($parts)) {
-				$source .= <<<SOURCE
+			if (!empty($package)) {
+				$parts = explode('.', $package);
+				$module = array_pop($parts);
+				if (!empty($parts)) {
+					$source .= <<<SOURCE
 
 var {$parts[0]} = (function(\$this) {
 	return \$this;
@@ -44,41 +45,50 @@ var {$parts[0]} = (function(\$this) {
 
 
 SOURCE;
-			} else {
-				$source .= <<<SOURCE
+				} else {
+					$source .= <<<SOURCE
 				
 var 
 SOURCE;
-			}
-			$source .= <<<SOURCE
+				}
+				$source .= <<<SOURCE
 {$package} = (function(\$this) {
 
 SOURCE;
-			
+			}
+			$_source = '';
 			foreach ($this->proto['messages'] as $message) {
 				if ($message['package'] === $package) {
-					$source .= $this->generateMessageSource($message);
+					$_source .= $this->generateMessageSource($message);
 				}
 			}
 			
 			foreach ($this->proto['enums'] as $enum) {
 				if ($enum['package'] === $package) {
-					$source .= $this->generateEnumSource($enum);
+					$_source .= $this->generateEnumSource($enum);
 				}
 			}
 			
 			foreach ($this->proto['services'] as $service) {
 				if ($service['package'] === $package) {
-					$source .= $this->generateServiceSource($service);
+					$_source .= $this->generateServiceSource($service);
 				}
 			}
-			
-		$source .= <<<SOURCE
+			if (!empty($package)) {
+				$source .= $_source;
+				$source .= <<<SOURCE
 
 	return \$this;
 }({$package} || {}));
 
 SOURCE;
+			} else {
+				$lines = explode("\n", $_source);
+				foreach ($lines as &$line) {
+					$line = substr($line, 1);
+				}
+				$source .= implode("\n", $lines);
+			}
 		}
 		
 		$filepath = "{$path}/public/js/{$this->fileName}.js";
@@ -388,7 +398,7 @@ SOURCE;
 	};
 
 SOURCE;
-		if (strpos($enum['type'], '.') === FALSE) {
+		if (!empty($enum['package']) && strpos($enum['type'], '.') === FALSE) {
 			$source .= <<<SOURCE
 		
 	\$this.{$enum['type']} = {$enum['type']};
@@ -622,7 +632,7 @@ SOURCE;
 	};
 
 SOURCE;
-		if (strpos($message['type'], '.') === FALSE) {
+		if (!empty($message['package']) && strpos($message['type'], '.') === FALSE) {
 			$source .= <<<SOURCE
 
 	\$this.{$message['type']} = {$message['type']};
@@ -680,9 +690,14 @@ SOURCE;
 		$source .= <<<SOURCE
 	};
 
+SOURCE;
+		if (!empty($service['package'])) {
+			$source .= <<<SOURCE
+
 	\$this.{$service['service']} = {$service['service']};
 
 SOURCE;
+		}
 		return $source;
 	}
 

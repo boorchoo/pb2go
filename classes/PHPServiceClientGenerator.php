@@ -18,7 +18,7 @@ class PHPServiceClientGenerator extends PHPGenerator {
 		
 		foreach ($this->proto['services'] as $service) {
 			$source = $this->generateServiceClientClassSource($service);
-			$filepath = "{$path}/classes/" . str_replace('\\', '/', $this->getNamespace($service['package'])) . "/{$service['service']}Client.php";
+			$filepath = "{$path}/classes/" . (empty($service['package']) ? '' : (str_replace('\\', '/', $this->getNamespace($service['package'])) . '/')) . "{$service['service']}Client.php";
 			$res = $this->output($filepath, $source);
 			if ($res) {
 				echo "{$filepath}\n";
@@ -120,8 +120,16 @@ SOURCE;
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
 
+
+SOURCE;
+		if (!empty($namespace)) {
+			$source .= <<<SOURCE
 namespace {$namespace};
 
+
+SOURCE;
+		}
+		$source .= <<<SOURCE
 class {$service['service']}Client extends \JSONRPC\Client {
 
 	public function __construct(\$url) {

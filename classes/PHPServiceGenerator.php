@@ -39,7 +39,7 @@ class PHPServiceGenerator extends PHPGenerator {
 		
 		foreach ($this->proto['services'] as $service) {
 			$source = $this->generateClassSource($service);
-			$filepath = "{$path}/classes/" . str_replace('\\', '/', $this->getNamespace($service['package'])) . "/{$service['service']}.php";
+			$filepath = "{$path}/classes/" . (empty($service['package']) ? '' : (str_replace('\\', '/', $this->getNamespace($service['package'])) . '/')) . "{$service['service']}.php";
 			$res = $this->output($filepath, $source);
 			if ($res) {
 				echo "{$filepath}\n";
@@ -47,7 +47,7 @@ class PHPServiceGenerator extends PHPGenerator {
 			
 			foreach ($service['rpcs'] as $rpcName => $rpc) {
 				$source = $this->generateServiceMethodClassSource($service, $rpcName);
-				$filepath = "{$path}/classes/" . str_replace('\\', '/', $this->getNamespace($service['package'])) . "/{$service['service']}_{$rpcName}.php";
+				$filepath = "{$path}/classes/" . (empty($service['package']) ? '' : (str_replace('\\', '/', $this->getNamespace($service['package'])) . '/')) . "{$service['service']}_{$rpcName}.php";
 				$res = $this->output($filepath, $source, FALSE);
 				if ($res) {
 					echo "{$filepath}\n";
@@ -55,14 +55,14 @@ class PHPServiceGenerator extends PHPGenerator {
 			}
 			
 			$source = $this->generateServiceAuthenticationClassSource($service);
-			$filepath = "{$path}/classes/" . str_replace('\\', '/', $this->getNamespace($service['package'])) . "/{$service['service']}Authentication.php";
+			$filepath = "{$path}/classes/" . (empty($service['package']) ? '' : (str_replace('\\', '/', $this->getNamespace($service['package'])) . '/')) . "{$service['service']}Authentication.php";
 			$res = $this->output($filepath, $source, FALSE);
 			if ($res) {
 				echo "{$filepath}\n";
 			}
 			
 			$source = $this->generateServiceConfigurationClassSource($service);
-			$filepath = "{$path}/classes/" . str_replace('\\', '/', $this->getNamespace($service['package'])) . "/{$service['service']}Configuration.php";
+			$filepath = "{$path}/classes/" . (empty($service['package']) ? '' : (str_replace('\\', '/', $this->getNamespace($service['package'])) . '/')) . "{$service['service']}Configuration.php";
 			$res = $this->output($filepath, $source, FALSE);
 			if ($res) {
 				echo "{$filepath}\n";
@@ -250,11 +250,19 @@ SOURCE;
 	
 	public function generateServiceAuthenticationClassSource($service) {
 		$namespace = $this->getNamespace($service['package']);
-		$source = <<<SOURCE
+$source = <<<SOURCE
 <?php
 
+
+SOURCE;
+		if (!empty($namespace)) {
+			$source .= <<<SOURCE
 namespace {$namespace};
 
+
+SOURCE;
+		}
+		$source .= <<<SOURCE
 class {$service['service']}Authentication extends \JSONRPC\Authentication {
 
 	public function __construct(\$config) {
@@ -321,8 +329,16 @@ SOURCE;
 		$source = <<<SOURCE
 <?php
 
+
+SOURCE;
+		if (!empty($namespace)) {
+			$source .= <<<SOURCE
 namespace {$namespace};
 
+
+SOURCE;
+		}
+		$source .= <<<SOURCE
 class {$service['service']}Configuration extends \JSONRPC\Configuration {
 
 	public function __construct() {
@@ -346,8 +362,16 @@ SOURCE;
 		$source = <<<SOURCE
 <?php
 
+
+SOURCE;
+		if (!empty($namespace)) {
+			$source .= <<<SOURCE
 namespace {$namespace};
 
+
+SOURCE;
+		}
+		$source .= <<<SOURCE
 class {$service['service']}_{$rpcName} extends \JSONRPC\Method {
 
 	public function __construct(\$config, \$client) {
@@ -376,15 +400,24 @@ SOURCE;
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
 
+
+SOURCE;
+		if (!empty($namespace)) {
+			$source .= <<<SOURCE
 namespace {$namespace};
 
+
+SOURCE;
+			$namespace .= '\\';
+		}
+		$source .= <<<SOURCE
 class {$service['service']} extends \JSONRPC\Service {
 
 	public function __construct() {
 		parent::__construct();
 
-		\$this->setConfigurationClass('\\{$namespace}\\{$service['service']}Configuration');
-		\$this->setAuthenticationClass('\\{$namespace}\\{$service['service']}Authentication');
+		\$this->setConfigurationClass('\\{$namespace}{$service['service']}Configuration');
+		\$this->setAuthenticationClass('\\{$namespace}{$service['service']}Authentication');
 
 SOURCE;
 		if (!empty($service['rpcs'])) {
@@ -397,7 +430,7 @@ SOURCE;
 				. '\\' . str_replace('.', '_', $returnsType['name']);
 				$source .= <<<SOURCE
 
-		\$this->registerMethod('{$rpcName}', '\\{$namespace}\\{$service['service']}_{$rpcName}', '{$type}', '{$returns}');
+		\$this->registerMethod('{$rpcName}', '\\{$namespace}{$service['service']}_{$rpcName}', '{$type}', '{$returns}');
 SOURCE;
 			}
 			$source .= "\n";
@@ -413,6 +446,9 @@ SOURCE;
 
 	public function generateServiceSctiptSource($service) {
 		$namespace = $this->getNamespace($service['package']);
+		if (!empty($namespace)) {
+			$namespace .= '\\';
+		}
 		$source = <<<SOURCE
 <?php
 
@@ -422,7 +458,7 @@ spl_autoload_register(function (\$class) {
     include "../classes/" . str_replace('\\\\', '/', \$class) . ".php";
 });
 
-\$service = new {$namespace}\\{$service['service']}();
+\$service = new {$namespace}{$service['service']}();
 \$service->run();
 
 SOURCE;

@@ -96,7 +96,7 @@ class PHPGenerator extends AbstractGenerator {
 		
 		foreach ($this->proto['enums'] as $enum) {
 			$source = $this->generateEnumClassSource($enum);
-			$filepath = "{$path}/classes/" . str_replace('\\', '/', $this->getNamespace($enum['package'])) . '/' . str_replace('.', '_', $enum['type']) . ".php";
+			$filepath = "{$path}/classes/" . (empty($enum['package']) ? '' : (str_replace('\\', '/', $this->getNamespace($enum['package'])) . '/')) . str_replace('.', '_', $enum['type']) . ".php";
 			$res = $this->output($filepath, $source);
 			if ($res) {
 				echo "{$filepath}\n";
@@ -105,7 +105,7 @@ class PHPGenerator extends AbstractGenerator {
 		
 		foreach ($this->proto['messages'] as $message) {
 			$source = $this->generateMessageClassSource($message);
-			$filepath = "{$path}/classes/" . str_replace('\\', '/', $this->getNamespace($message['package'])) . '/' . str_replace('.', '_', $message['type']) . ".php";
+			$filepath = "{$path}/classes/" . (empty($message['package']) ? '' : (str_replace('\\', '/', $this->getNamespace($message['package'])) . '/')) . str_replace('.', '_', $message['type']) . ".php";
 			$res = $this->output($filepath, $source);
 			if ($res) {
 				echo "{$filepath}\n";
@@ -601,8 +601,16 @@ SOURCE;
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
 
+
+SOURCE;
+		if (!empty($namespace)) {
+			$source .= <<<SOURCE
 namespace {$namespace};
 
+
+SOURCE;
+		}
+		$source .= <<<SOURCE
 abstract class {$class} {
 
 
@@ -647,8 +655,16 @@ SOURCE;
 
 /*** DO NOT MANUALLY EDIT THIS FILE ***/
 
+
+SOURCE;
+		if (!empty($namespace)) {
+			$source .= <<<SOURCE
 namespace {$namespace};
 
+
+SOURCE;
+		}
+		$source .= <<<SOURCE
 class {$class} {
 
 
