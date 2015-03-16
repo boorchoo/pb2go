@@ -1,6 +1,8 @@
 <?php
 
 class Parser {
+	
+	const MAX = 536870911;
 
 	protected $proto;
 	
@@ -177,6 +179,7 @@ class Parser {
 			'package' => $this->currentPackage,
 			'type' => implode('.', $this->currentType),
 			'fields' => array(),
+			'extensions' => NULL,
 			'options' => array(),
 		);
 		while ($token = $this->getNextToken()) {
@@ -218,6 +221,13 @@ class Parser {
 					//TODO: Check if $value is valid value for option
 					$this->getNextToken(Lexer::SEMICOLON);
 					$this->proto['messages'][$type]['options'][$option] = $value;
+					break;
+				case 'extensions':
+					$this->parseExtensions();
+					break;
+				case 'group':
+					throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] " . Lexer::KEYWORD . " => group is deprecated and "
+						. "should not be used when creating new message types - use nested message types instead");
 					break;
 				default:
 					throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
@@ -588,6 +598,31 @@ class Parser {
 		//TODO: Check if $value is valid value for option
 		$this->getNextToken(Lexer::SEMICOLON);
 		$this->proto['options'][$option] = $value;
+	}
+	
+	protected function parseExtensions() {
+		$token = $this->getNextToken(Lexer::NUMBER);
+		$from = intval($token->getText());
+		$token = $this->getNextToken();
+		if (empty($token)) {
+			throw new Exception("[{$this->getFile()}] Unexpected EOF");
+		}
+		if ($token->getType() !== Lexer::KEYWORD || $token->getText() !== 'to') {
+			throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::KEYWORD . " => to but found {$token->getType()} => {$token->getText()}");
+		}
+		$token = $this->getNextToken();
+		if (empty($token)) {
+			throw new Exception("[{$this->getFile()}] Unexpected EOF");
+		}
+		if ($token->getType() === Lexer::NUMBER) {
+			$to = intval($token->getText());
+		} elseif ($token->getType() === Lexer::KEYWORD && $token->getText() === 'max') {
+			$to = self::MAX;
+		} else {
+			throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::NUMBER . " or " . Lexer::KEYWORD . " => max but found {$token->getType()} => {$token->getText()}");
+		}
+		$this->getNextToken(Lexer::SEMICOLON);
+		$this->proto['messages'][(empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . implode('.', $this->currentType)]['extensions'] = array($from, $to);
 	}
 
 }
