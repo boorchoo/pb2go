@@ -233,7 +233,7 @@ class Parser {
 			"[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 	}
 	
-	protected function parseOneof() {
+	protected function parseOneof($messageType = NULL) {
 		$token = $this->getNextToken(Lexer::IDENTIFIER);
 		$name = $token->getText();
 		$token = $this->getNextToken(Lexer::OPENING_BRACE);
@@ -292,7 +292,7 @@ class Parser {
 					throw new Exception("[{$this->getFile()}] Unexpected EOF");
 				}
 			}
-			$this->proto['messages'][(empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . implode('.', $this->currentType)]['fields'][$field] = array(
+			$this->proto['messages'][empty($messageType) ? ((empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . implode('.', $this->currentType)) : $messageType]['fields'][$field] = array(
 				'rule' => "optional",
 				'type' => (empty($type['package']) ? '' : "{$type['package']}.") . $type['name'],
 				'tag' => isset($tag) ? $tag : NULL,
@@ -304,7 +304,7 @@ class Parser {
 			"[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 	}
 
-	protected function parseField($rule) {
+	protected function parseField($rule, $messageType = NULL) {
 		$token = $this->getNextToken();
 		if (empty($token)) {
 			throw new Exception("[{$this->getFile()}] Unexpected EOF");
@@ -364,7 +364,7 @@ class Parser {
 				throw new Exception("[{$this->getFile()}] Unexpected EOF");
 			}
 		}
-		$this->proto['messages'][(empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . implode('.', $this->currentType)]['fields'][$field] = array(
+		$this->proto['messages'][empty($messageType) ? ((empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . implode('.', $this->currentType)) : $messageType]['fields'][$field] = array(
 			'rule' => $rule,
 			'type' => (empty($type['package']) ? '' : "{$type['package']}.") . $type['name'],
 			'tag' => isset($tag) ? $tag : NULL,
@@ -532,15 +532,9 @@ class Parser {
 		$token = $this->getNextToken(Lexer::IDENTIFIER);
 		$_type = $token->getText();
 		$type = $this->getType($_type);
-		$currentPackage = $this->currentPackage;
-		$currentType = $this->currentType;
-		$this->currentPackage = $type['package'];
-		$this->currentType = explode('.', $type['name']);
 		$this->getNextToken(Lexer::OPENING_BRACE);
 		while ($token = $this->getNextToken()) {
 			if ($token->getType() === Lexer::CLOSING_BRACE) {
-				$this->currentPackage = $currentPackage;
-				$this->currentType = $currentType;
 				return;
 			}
 			if ($token->getType() !== Lexer::KEYWORD) {
@@ -551,19 +545,10 @@ class Parser {
 				case 'required':
 				case 'optional':
 				case 'repeated':
-					$this->parseField($token->getText());
+					$this->parseField($token->getText(), (empty($type['package']) ? '' : "{$type['package']}.") . $type['name']);
 					break;
 				case 'oneof':
-					$this->parseOneof();
-					break;
-				case 'message':
-					$this->parseMessage();
-					break;
-				case 'enum':
-					$this->parseEnum();
-					break;
-				case 'extend':
-					$this->parseExtend();
+					$this->parseOneof((empty($type['package']) ? '' : "{$type['package']}.") . $type['name']);
 					break;
 				case 'option':
 					$token = $this->getNextToken(Lexer::IDENTIFIER);
