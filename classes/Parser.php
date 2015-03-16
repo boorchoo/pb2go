@@ -225,10 +225,6 @@ class Parser {
 				case 'extensions':
 					$this->parseExtensions();
 					break;
-				case 'group':
-					throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] " . Lexer::KEYWORD . " => group is deprecated and "
-						. "should not be used when creating new message types - use nested message types instead");
-					break;
 				default:
 					throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 			}
@@ -312,6 +308,10 @@ class Parser {
 		$token = $this->getNextToken();
 		if (empty($token)) {
 			throw new Exception("[{$this->getFile()}] Unexpected EOF");
+		}
+		if ($token->getType() === Lexer::KEYWORD && $token->getText() === 'group') {
+			throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] " . Lexer::KEYWORD . " => group is deprecated and "
+				. "should not be used when creating new message types - use nested message types instead");
 		}
 		$type = $this->getType($token->getText());
 		$token = $this->getNextToken(Lexer::IDENTIFIER);
