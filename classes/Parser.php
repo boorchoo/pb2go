@@ -194,6 +194,9 @@ class Parser {
 				case 'repeated':
 					$this->parseField($token->getText());
 					break;
+				case 'oneof':
+					$this->parseOneof();
+					break;
 				case 'message':
 					$this->parseMessage();
 					break;
@@ -219,6 +222,77 @@ class Parser {
 				default:
 					throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 			}
+		}
+		throw new Exception(empty($token) ? "[{$this->getFile()}] Unexpected EOF" :
+			"[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
+	}
+	
+	protected function parseOneof() {
+		$token = $this->getNextToken(Lexer::IDENTIFIER);
+		$name = $token->getText();
+		$token = $this->getNextToken(Lexer::OPENING_BRACE);
+		while ($token = $this->getNextToken()) {
+			if ($token->getType() === Lexer::CLOSING_BRACE) { 
+				return;
+			}
+			$type = $this->getType($token->getText());
+			$token = $this->getNextToken(Lexer::IDENTIFIER);
+			$field = $token->getText();
+			$token = $this->getNextToken();
+			if (empty($token)) {
+				throw new Exception("[{$this->getFile()}] Unexpected EOF");
+			}
+			if ($token->getType() !== Lexer::EQUALS && $token->getType() !== Lexer::OPENING_BRACKET && $token->getType() !== Lexer::SEMICOLON) {
+				throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::EQUALS . " or " . Lexer::OPENING_BRACKET
+				. " or " . Lexer::SEMICOLON . " but found {$token->getType()} => {$token->getText()}");
+			}
+			if ($token->getType() === Lexer::EQUALS) {
+				$token = $this->getNextToken(Lexer::NUMBER);
+				$tag = $token->getText();
+				$token = $this->getNextToken();
+				if (empty($token)) {
+					throw new Exception("[{$this->getFile()}] Unexpected EOF");
+				}
+			}
+			if ($token->getType() !== Lexer::OPENING_BRACKET && $token->getType() !== Lexer::SEMICOLON) {
+				throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::OPENING_BRACKET . " or "
+						. Lexer::SEMICOLON . " but found {$token->getType()} => {$token->getText()}");
+			}
+			$options = array();
+			if ($token->getType() === Lexer::OPENING_BRACKET) {
+				while ($token = $this->getNextToken()) {
+					if ($token->getType() === Lexer::CLOSING_BRACKET) {
+						$token = $this->getNextToken(Lexer::SEMICOLON);
+						break;
+					}
+					if ($token->getType() === Lexer::IDENTIFIER) {
+						$option = $token->getText();
+						$this->getNextToken(Lexer::EQUALS);
+						$token = $this->getNextToken();
+						if (empty($token)) {
+							break;
+						}
+						$value = $token->getText();
+						//TODO: Check if $value is valid value for option
+						$options[$option] = $value;
+						continue;
+					}
+					if ($token->getType() === Lexer::COMMA && !empty($options)) {
+						continue;
+					}
+					throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
+				}
+				if (empty($token)) {
+					throw new Exception("[{$this->getFile()}] Unexpected EOF");
+				}
+			}
+			$this->proto['messages'][(empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . implode('.', $this->currentType)]['fields'][$field] = array(
+				'rule' => "optional",
+				'type' => (empty($type['package']) ? '' : "{$type['package']}.") . $type['name'],
+				'tag' => isset($tag) ? $tag : NULL,
+				'oneof' => $name,
+				'options' => $options,
+			);
 		}
 		throw new Exception(empty($token) ? "[{$this->getFile()}] Unexpected EOF" :
 			"[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
@@ -284,6 +358,7 @@ class Parser {
 			'rule' => $rule,
 			'type' => (empty($type['package']) ? '' : "{$type['package']}.") . $type['name'],
 			'tag' => isset($tag) ? $tag : NULL,
+			'oneof' => NULL,
 			'options' => $options,
 		);
 	}
@@ -467,6 +542,9 @@ class Parser {
 				case 'optional':
 				case 'repeated':
 					$this->parseField($token->getText());
+					break;
+				case 'oneof':
+					$this->parseOneof();
 					break;
 				case 'message':
 					$this->parseMessage();
