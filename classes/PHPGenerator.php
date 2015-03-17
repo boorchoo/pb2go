@@ -14,6 +14,14 @@ class PHPGenerator extends AbstractGenerator {
 		return ($prefix ? '\\' : '') . implode('\\', $package_parts);
 	}
 	
+	public function getClass($type) {
+		$type_parts = explode('.', $type);
+		foreach ($type_parts as &$type_part) {
+			$type_part = $this->toCamelCase($type_part);
+		}
+		return implode('_', $type_parts);
+	}
+	
 	public function generate($path) {
 		echo "Generating PHP files...\n";
 		
@@ -104,6 +112,14 @@ class PHPGenerator extends AbstractGenerator {
 		}
 		
 		foreach ($this->proto['messages'] as $message) {
+			foreach ($message['oneofs'] as $oneof) {
+				$source = $this->generateOneofEnumClassSource($message, $oneof);
+				$filepath = "{$path}/classes/" . (empty($message['package']) ? '' : (str_replace('\\', '/', $this->getNamespace($message['package'])) . '/')) . $this->getClass("{$message['type']}.{$oneof['oneof']}Case") . ".php";
+				$res = $this->output($filepath, $source);
+				if ($res) {
+					echo "{$filepath}\n";
+				}
+			}
 			$source = $this->generateMessageClassSource($message);
 			$filepath = "{$path}/classes/" . (empty($message['package']) ? '' : (str_replace('\\', '/', $this->getNamespace($message['package'])) . '/')) . str_replace('.', '_', $message['type']) . ".php";
 			$res = $this->output($filepath, $source);
@@ -626,6 +642,42 @@ SOURCE;
 		return $source;
 	}
 	
+	public function generateOneofEnumClassSource($message, $oneof) {
+		$namespace = $this->getNamespace($message['package']);
+		$class = $this->getClass("{$message['type']}.{$oneof['oneof']}Case");
+		$oneofCaseNotSet = strtoupper($oneof['oneof']) . '_NOT_SET';
+		$source = <<<SOURCE
+<?php
+
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+
+SOURCE;
+		if (!empty($namespace)) {
+			$source .= <<<SOURCE
+namespace {$namespace};
+
+
+SOURCE;
+		}
+		$source .= <<<SOURCE
+abstract class {$class} {
+
+
+SOURCE;
+		$source .= "	const {$oneofCaseNotSet} = 0;\n";
+		foreach ($oneof['fields'] as $field) {
+			$oneofCase = strtoupper($field['field']);
+			$source .= "	const {$oneofCase} = {$field['tag']};\n";
+		}
+		$source .= <<<SOURCE
+
+}
+
+SOURCE;
+		return $source;
+	}
+	
 	protected function getFieldDefaultValueSource($message, $field) {
 		if (!isset($field['options']['default'])) {
 			return 'NULL';
@@ -698,6 +750,16 @@ SOURCE;
 	}
 
 	public function set{$methodName}(\$value) {
+
+SOURCE;
+					if (isset($field['oneof'])) {
+						$oneofMethodName = $this->toCamelCase($field['oneof']);
+						$source .= <<<SOURCE
+		\$this->clear{$oneofMethodName}();
+
+SOURCE;
+					}
+					$source .= <<<SOURCE
 		\$this->{$name} = \$value;
 	}
 
@@ -745,6 +807,44 @@ SOURCE;
 				default:
 					break;
 			}
+		}
+		foreach ($message['oneofs'] as $oneof) {
+			$methodName = $this->toCamelCase($oneof['oneof']);
+			$oneofCaseClass = $this->getClass("{$message['type']}.{$oneof['oneof']}Case");
+			$oneofCaseNotSet = strtoupper($oneof['oneof']) . '_NOT_SET';
+			$source .= <<<SOURCE
+
+	public function get{$methodName}Case() {
+
+SOURCE;
+			foreach ($oneof['fields'] as $field) {
+				$fieldMethodName = $this->toCamelCase($field['field']);
+				$oneofCase = strtoupper($field['field']);
+				$source .= <<<SOURCE
+		if (\$this->has{$fieldMethodName}()) {
+			return {$oneofCaseClass}::{$oneofCase};
+		}
+
+SOURCE;
+			}
+			$source .= <<<SOURCE
+		return {$oneofCaseClass}::{$oneofCaseNotSet};
+	}
+
+	public function clear{$methodName}() {
+
+SOURCE;
+			foreach ($oneof['fields'] as $field) {
+				$fieldMethodName = $this->toCamelCase($field['field']);
+				$source .= <<<SOURCE
+		\$this->clear{$fieldMethodName}();
+
+SOURCE;
+			}
+			$source .= <<<SOURCE
+	}
+
+SOURCE;
 		}
 		$source .= <<<SOURCE
 

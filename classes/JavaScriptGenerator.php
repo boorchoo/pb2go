@@ -60,6 +60,9 @@ SOURCE;
 			foreach ($this->proto['messages'] as $message) {
 				if ($message['package'] === $package) {
 					$_source .= $this->generateMessageSource($message);
+					foreach ($message['oneofs'] as $oneof) {
+						$_source .= $this->generateOneofEnumSource($message, $oneof);
+					}
 				}
 			}
 			
@@ -457,6 +460,28 @@ SOURCE;
 		return $source;
 	}
 	
+	public function generateOneofEnumSource($message, $oneof) {
+		$type = $this->toCamelCase($oneof['oneof']) . "Case";
+		$oneofCaseNotSet = strtoupper($oneof['oneof']) . '_NOT_SET';
+		$source = <<<SOURCE
+
+	{$message['type']}.{$type} = {
+
+SOURCE;
+		$source .= "		{$oneofCaseNotSet}: 0,\n";
+		foreach ($oneof['fields'] as $field) {
+			$oneofCase = strtoupper($field['field']);
+			$source .= "		{$oneofCase}: {$field['tag']},\n";
+		}
+		$source = substr($source, 0, strlen($source) - 2);
+		$source .= <<<SOURCE
+
+	};
+
+SOURCE;
+		return $source;
+	}
+	
 	protected function getFieldDefaultValueSource($message, $field) {
 		if (!isset($field['options']['default'])) {
 			return 'null';
@@ -507,7 +532,21 @@ SOURCE;
 		};
 
 		this.set{$methodName} = function(value) {
+
+SOURCE;
+					if (isset($field['oneof'])) {
+						$oneofMethodName = $this->toCamelCase($field['oneof']);
+						$source .= <<<SOURCE
+			this.clear{$oneofMethodName}();
+
+SOURCE;
+					}
+					$source .= <<<SOURCE
 			{$name} = value;
+		};
+
+		this.clear{$methodName} = function() {
+			{$name} = null;
 		};
 
 
@@ -551,6 +590,44 @@ SOURCE;
 				default:
 					break;
 			}
+		}
+		foreach ($message['oneofs'] as $oneof) {
+			$methodName = $this->toCamelCase($oneof['oneof']);
+			$oneofCaseClass = "{$message['type']}.{$methodName}Case";
+			$oneofCaseNotSet = strtoupper($oneof['oneof']) . '_NOT_SET';
+			$source .= <<<SOURCE
+		this.get{$methodName}Case = function() {
+
+SOURCE;
+			foreach ($oneof['fields'] as $field) {
+				$fieldMethodName = $this->toCamelCase($field['field']);
+				$oneofCase = strtoupper($field['field']);
+				$source .= <<<SOURCE
+			if (this.has{$fieldMethodName}()) {
+				return {$oneofCaseClass}.{$oneofCase};
+			}
+
+SOURCE;
+			}
+			$source .= <<<SOURCE
+			return {$oneofCaseClass}.{$oneofCaseNotSet};
+		};
+
+		this.clear{$methodName} = function() {
+
+SOURCE;
+			foreach ($oneof['fields'] as $field) {
+				$fieldMethodName = $this->toCamelCase($field['field']);
+				$source .= <<<SOURCE
+			this.clear{$fieldMethodName}();
+
+SOURCE;
+			}
+			$source .= <<<SOURCE
+		};
+
+
+SOURCE;
 		}
 		$source .= <<<SOURCE
 		this.isInitialized = function() {

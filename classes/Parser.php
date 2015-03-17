@@ -71,6 +71,19 @@ class Parser {
 		}
 		return NULL;
 	}
+	
+	public function getNextTag($message, $min = 1) {
+		$tag = intval($min) > 0 ? intval($min) : 1;
+		do {
+			foreach ($message['fields'] as $field) {
+				if ($field['tag'] === $tag) {
+					$tag++;
+					continue;
+				}
+			}
+			return $tag;
+		} while (1);
+	}
 
 	public function parse($file) {
 		$text = @file_get_contents($file);
@@ -124,6 +137,37 @@ class Parser {
 			$this->currentType = array();
 			$canImport = TRUE;
 		}
+		
+		foreach ($this->proto['messages'] as $type => $message) {
+			foreach ($message['fields'] as $field) {
+				if (isset($field['tag'])) {
+					continue;
+				} 
+				$this->proto['messages'][$type]['fields'][$field['field']]['tag'] = $this->getNextTag($this->proto['messages'][$type],
+					$field['extension'] && isset($message['extensions'][0]) ? $message['extensions'][0] : 1);
+			}
+		}
+		
+		foreach ($this->proto['messages'] as $type => $message) {
+			$oneofs = $message['oneofs'];
+			foreach ($message['fields'] as $field) {
+				if (!isset($field['oneof'])) {
+					continue;
+				}
+				if (!isset($oneofs[$field['oneof']])) {
+					$oneofs[$field['oneof']] = array(
+						'oneof' => $field['oneof'],
+						'fields' => array(),
+					);
+				}
+				$oneofs[$field['oneof']]['fields'][$field['field']] = array(
+					'field' => $field['field'],
+					'tag' => $field['tag'],
+				);
+			}
+			$this->proto['messages'][$type]['oneofs'] = $oneofs;
+		}
+		
 		return $this->proto;
 	}
 
@@ -179,6 +223,7 @@ class Parser {
 			'package' => $this->currentPackage,
 			'type' => implode('.', $this->currentType),
 			'fields' => array(),
+			'oneofs' => array(),
 			'extensions' => NULL,
 			'options' => array(),
 		);
@@ -254,11 +299,13 @@ class Parser {
 			}
 			if ($token->getType() === Lexer::EQUALS) {
 				$token = $this->getNextToken(Lexer::NUMBER);
-				$tag = $token->getText();
+				$tag = intval($token->getText());
 				$token = $this->getNextToken();
 				if (empty($token)) {
 					throw new Exception("[{$this->getFile()}] Unexpected EOF");
 				}
+			} else {
+				$tag = NULL;
 			}
 			if ($token->getType() !== Lexer::OPENING_BRACKET && $token->getType() !== Lexer::SEMICOLON) {
 				throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Expected " . Lexer::OPENING_BRACKET . " or "
@@ -294,10 +341,12 @@ class Parser {
 			}
 			$this->proto['messages'][empty($messageType) ? ((empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . implode('.', $this->currentType)) : $messageType]['fields'][$field] = array(
 				'rule' => "optional",
+				'field' => $field, 
 				'type' => (empty($type['package']) ? '' : "{$type['package']}.") . $type['name'],
 				'tag' => isset($tag) ? $tag : NULL,
 				'oneof' => $name,
 				'options' => $options,
+				'extension' => empty($messageType) ? FALSE : TRUE,
 			);
 		}
 		throw new Exception(empty($token) ? "[{$this->getFile()}] Unexpected EOF" :
@@ -326,7 +375,7 @@ class Parser {
 		}
 		if ($token->getType() === Lexer::EQUALS) {
 			$token = $this->getNextToken(Lexer::NUMBER);
-			$tag = $token->getText();
+			$tag = intval($token->getText());
 			$token = $this->getNextToken();
 			if (empty($token)) {
 				throw new Exception("[{$this->getFile()}] Unexpected EOF");
@@ -366,10 +415,12 @@ class Parser {
 		}
 		$this->proto['messages'][empty($messageType) ? ((empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . implode('.', $this->currentType)) : $messageType]['fields'][$field] = array(
 			'rule' => $rule,
+			'field' => $field,
 			'type' => (empty($type['package']) ? '' : "{$type['package']}.") . $type['name'],
 			'tag' => isset($tag) ? $tag : NULL,
 			'oneof' => NULL,
 			'options' => $options,
+			'extension' => empty($messageType) ? FALSE : TRUE,
 		);
 	}
 
