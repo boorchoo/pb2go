@@ -45,23 +45,30 @@ class Parser {
 	}
 	
 	protected function getType($type) {
-		$registeredType = Registry::getType($type);
-		if (!empty($registeredType)) {
+		if (strpos($type, '.') === 0) {
+			$registeredType = Registry::getType(substr($type, 1));
+			if (empty($registeredType)) {
+				throw new Exception("[{$this->getFile()}] Found undefined type {$type}");
+			}
 			return $registeredType;
 		}
 	
-		$_currentType = $this->currentType;
-		$_type = (empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . (empty($_currentType) ? '' : (implode('.', $_currentType) . ".")) . $type;
+		$path = empty($this->currentPackage) ? array() : explode('.', $this->currentPackage);
+		foreach ($this->currentType as $currentType) {
+			array_push($path, $currentType);
+		}
+		
+		$_type = (empty($path) ? '' : (implode('.', $path) . ".")) . $type;
 		do {
 			$registeredType = Registry::getType($_type);
 			if (!empty($registeredType)) {
 				return $registeredType;
 			}
-			if (empty($_currentType)) {
+			if (empty($path)) {
 				throw new Exception("[{$this->getFile()}] Found undefined type {$type}");
 			}
-			array_pop($_currentType);
-			$_type = (empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . (empty($_currentType) ? '' : (implode('.', $_currentType) . ".")) . $type;
+			array_pop($path);
+			$_type = (empty($path) ? '' : (implode('.', $path) . ".")) . $type;
 		} while (1);
 	}
 
