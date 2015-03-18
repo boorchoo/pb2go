@@ -6,8 +6,7 @@ class Parser {
 
 	protected $proto;
 	
-	protected $files;
-	protected $lexers;
+	protected $contexts;
 
 	protected $currentPackage;
 	protected $currentType;
@@ -20,19 +19,29 @@ class Parser {
 			'options' => array(),
 		);
 		
-		$this->files = array();
-		$this->lexers = array();
+		$this->contexts = array();
 		
 		$this->currentPackage = NULL;
 		$this->currentType = array();
 	}
 	
+	protected function getContext() {
+		return empty($this->contexts) ? NULL : end($this->contexts);
+	}
+	
 	protected function getFile() {
-		return empty($this->files) ? NULL : end($this->files);
+		$context = $this->getContext();
+		return empty($context['file']) ? NULL : $context['file'];
 	}
 	
 	protected function getLexer() {
-		return empty($this->lexers) ? NULL : end($this->lexers);
+		$context = $this->getContext();
+		return empty($context['lexer']) ? NULL : $context['lexer'];
+	}
+	
+	protected function getPublic() {
+		$context = $this->getContext();
+		return empty($context['public']) ? FALSE : TRUE;
 	}
 	
 	protected function getType($type) {
@@ -90,8 +99,11 @@ class Parser {
 		if ($text === FALSE) {
 			throw new Exception("Failed to open file '{$file}'");
 		}
-		array_push($this->files, $file);
-		array_push($this->lexers, new Lexer($text));
+		array_push($this->contexts, array(
+			'file' => $file,
+			'lexer' => new Lexer($text),
+			'public' => TRUE,
+		));
 		$canImport = TRUE;
 		
 		while ($this->getLexer()) {
@@ -131,8 +143,7 @@ class Parser {
 						throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
 				}
 			}
-			array_pop($this->files);
-			array_pop($this->lexers);
+			array_pop($this->contexts);
 			$this->currentPackage = NULL;
 			$this->currentType = array();
 			$canImport = TRUE;
@@ -196,11 +207,16 @@ class Parser {
 		if ($text === FALSE) {
 			throw new Exception("[{$this->getFile()}] Failed to import '{$file}'");
 		}
-		if (in_array($file, $this->files)) {
-			throw new Exception("[{$this->getFile()}] Found recursive import '{$file}'");
+		foreach ($this->contexts as $context) {
+			if ($context['file'] === $file) {
+				throw new Exception("[{$this->getFile()}] Found recursive import '{$file}'");
+			}
 		}
-		array_push($this->files, $file);
-		array_push($this->lexers, new Lexer($text));
+		array_push($this->contexts, array(
+			'file' => $file,
+			'lexer' => new Lexer($text),
+			'public' => $public && $this->getPublic(),
+		));
 	}
 
 	protected function parsePackage() {
@@ -477,12 +493,14 @@ class Parser {
 		$service = $token->getText();
 		//TODO: Check if $service is valid identifier
 		$this->getNextToken(Lexer::OPENING_BRACE);
-		$this->proto['services'][(empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . $service] = array(
-			'package' => $this->currentPackage,
-			'service' => $service,
-			'rpcs' => array(),
-			'options' => array(),
-		);
+		if ($this->getPublic()) {
+			$this->proto['services'][(empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . $service] = array(
+				'package' => $this->currentPackage,
+				'service' => $service,
+				'rpcs' => array(),
+				'options' => array(),
+			);
+		}
 		while ($token = $this->getNextToken()) {
 			if ($token->getType() === Lexer::CLOSING_BRACE) {
 				return;
@@ -506,7 +524,9 @@ class Parser {
 					$value = $token->getText();
 					//TODO: Check if $value is valid value for option
 					$this->getNextToken(Lexer::SEMICOLON);
-					$this->proto['services'][(empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . $service]['options'][$option] = $value;
+					if ($this->getPublic()) {
+						$this->proto['services'][(empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . $service]['options'][$option] = $value;
+					}
 					break;
 				default:
 					throw new Exception("[{$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
@@ -572,11 +592,13 @@ class Parser {
 				throw new Exception("[{$this->getFile()}] Unexpected EOF");
 			}
 		}
-		$this->proto['services'][(empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . $service]['rpcs'][$rpc] = array(
-			'type' => (empty($type['package']) ? '' : "{$type['package']}.") . $type['name'],
-			'returns' => (empty($returns['package']) ? '' : "{$returns['package']}.") . $returns['name'],
-			'options' => $options,
-		);
+		if ($this->getPublic()) {
+			$this->proto['services'][(empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . $service]['rpcs'][$rpc] = array(
+				'type' => (empty($type['package']) ? '' : "{$type['package']}.") . $type['name'],
+				'returns' => (empty($returns['package']) ? '' : "{$returns['package']}.") . $returns['name'],
+				'options' => $options,
+			);
+		}
 	}
 
 	protected function parseExtend() {
