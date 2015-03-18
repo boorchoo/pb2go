@@ -9,15 +9,15 @@ class PHPServiceClientGenerator extends PHPGenerator {
 	public function generate($path) {
 		echo "Generating PHP service client files...\n";
 		
-		$source = $this->generateClientClassSource();
-		$filepath = "{$path}/classes/JSONRPC/Client.php";
+		$source = $this->generateServiceClientClassSource();
+		$filepath = "{$path}/classes/JSONRPC/ServiceClient.php";
 		$res = $this->output($filepath, $source);
 		if ($res) {
 			echo "{$filepath}\n";
 		}
 		
 		foreach ($this->proto['services'] as $service) {
-			$source = $this->generateServiceClientClassSource($service);
+			$source = $this->generateClassSource($service);
 			$filepath = "{$path}/classes/" . (empty($service['package']) ? '' : (str_replace('\\', '/', $this->getNamespace($service['package'])) . '/')) . "{$service['service']}Client.php";
 			$res = $this->output($filepath, $source);
 			if ($res) {
@@ -26,7 +26,7 @@ class PHPServiceClientGenerator extends PHPGenerator {
 		}
 	}
 	
-	public function generateClientClassSource() {
+	public function generateServiceClientClassSource() {
 		$source = <<<'SOURCE'
 <?php
 
@@ -34,7 +34,7 @@ class PHPServiceClientGenerator extends PHPGenerator {
 
 namespace JSONRPC;
 
-abstract class Client {
+abstract class ServiceClient {
 
 	protected $url;
 	protected $requestHeaders;
@@ -113,7 +113,7 @@ SOURCE;
 		return $source;
 	}
 
-	public function generateServiceClientClassSource($service) {
+	public function generateClassSource($service) {
 		$namespace = $this->getNamespace($service['package']);
 		$source = <<<SOURCE
 <?php
@@ -130,7 +130,7 @@ namespace {$namespace};
 SOURCE;
 		}
 		$source .= <<<SOURCE
-class {$service['service']}Client extends \JSONRPC\Client {
+class {$service['service']}Client extends \JSONRPC\ServiceClient {
 
 	public function __construct(\$url) {
 		parent::__construct(\$url);

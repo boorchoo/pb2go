@@ -358,7 +358,7 @@ var JSONRPC = (function($this) {
 		return Response.Error.fromObject(JSON.parse(value));
 	};
 
-	var Client = function(_url) {
+	var ServiceClient = function(_url) {
 
 		var url = _url;
 		var requestHeaders = [];
@@ -425,7 +425,7 @@ var JSONRPC = (function($this) {
 
 	};
 
-	$this.Client = Client;
+	$this.ServiceClient = ServiceClient;
 
 	return $this;
 }(JSONRPC || {}));
@@ -773,7 +773,7 @@ SOURCE;
 
 	var {$service['service']}Client = function(_url) {
 
-		this.base = JSONRPC.Client;
+		this.base = JSONRPC.ServiceClient;
 		this.base(_url);
 
 
@@ -804,7 +804,7 @@ SOURCE;
 		}
 		$source .= <<<SOURCE
 	};
-	{$service['service']}Client.prototype = new JSONRPC.Client;
+	{$service['service']}Client.prototype = new JSONRPC.ServiceClient;
 
 SOURCE;
 		if (!empty($service['package'])) {

@@ -30,8 +30,15 @@ class PHPServiceGenerator extends PHPGenerator {
 			echo "{$filepath}\n";
 		}
 		
-		$source = $this->generateConfigurationClassSource();
-		$filepath = "{$path}/classes/JSONRPC/Configuration.php";
+		$source = $this->generateValuesClassSource();
+		$filepath = "{$path}/classes/JSONRPC/Values.php";
+		$res = $this->output($filepath, $source);
+		if ($res) {
+			echo "{$filepath}\n";
+		}
+		
+		$source = $this->generateClientClassSource();
+		$filepath = "{$path}/classes/JSONRPC/Client.php";
 		$res = $this->output($filepath, $source);
 		if ($res) {
 			echo "{$filepath}\n";
@@ -117,16 +124,15 @@ abstract class Service {
 	public function run() {
 		try {
 			if (empty($this->configurationClassName)) {
-				$config = new Configuration();
+				$config = new Values();
 			} else {
 				$config = new $this->configurationClassName();
 			}
 
-			if (empty($this->authenticationClassName)) {
-				$client = NULL;
-			} else {
-				$authentication = new $this->authenticationClassName($config);
-				$client = $authentication->authenticate();
+			$client = new Client();
+			if (!empty($this->authenticationClassName)) {
+				$authentication = new $this->authenticationClassName($config, $client);
+				$authentication->authenticate();
 			}
 
 			$request = Request::parse(file_get_contents("php://input"));
@@ -225,9 +231,11 @@ namespace JSONRPC;
 abstract class Authentication {
 
 	protected $config;
+	protected $client;
 
-	protected function __construct($config) {
+	protected function __construct($config, $client) {
 		$this->config = $config;
+		$this->client = $client;
 	}
 
 	public abstract function authenticate();
@@ -265,13 +273,11 @@ SOURCE;
 		$source .= <<<SOURCE
 class {$service['service']}Authentication extends \JSONRPC\Authentication {
 
-	public function __construct(\$config) {
-		parent::__construct(\$config);
+	public function __construct(\$config, \$client) {
+		parent::__construct(\$config, \$client);
 	}
 
 	public function authenticate() {
-		\$client = NULL;
-		return \$client;
 	}
 
 }
@@ -280,7 +286,7 @@ SOURCE;
 		return $source;
 	}
 
-	public function generateConfigurationClassSource() {
+	public function generateValuesClassSource() {
 		$source = <<<'SOURCE'
 <?php
 
@@ -288,7 +294,7 @@ SOURCE;
 
 namespace JSONRPC;
 
-class Configuration {
+class Values {
 
 	protected $values;
 
@@ -304,6 +310,10 @@ class Configuration {
 		return $this->has($key) ? $this->values[$key] : NULL;
 	}
 
+	public function getAll() {
+		return $this->values;
+	}
+
 	public function set($key, $value = NULL) {
 		if ($value === NULL) {
 			$this->clear($key);
@@ -312,10 +322,20 @@ class Configuration {
 		}
 	}
 
+	public function setAll($values) {
+		foreach ($values as $key => $value) {
+			$this->set($key, $value);
+		}
+	}
+
 	public function clear($key) {
 		if ($this->has($key)) {
 			unset($this->values[$key]);
 		}
+	}
+
+	public function clearAll() {
+		$this->values = array();
 	}
 
 }
@@ -339,10 +359,41 @@ namespace {$namespace};
 SOURCE;
 		}
 		$source .= <<<SOURCE
-class {$service['service']}Configuration extends \JSONRPC\Configuration {
+class {$service['service']}Configuration extends \JSONRPC\Values {
 
 	public function __construct() {
 		parent::__construct();
+	}
+
+}
+
+SOURCE;
+		return $source;
+	}
+	
+	public function generateClientClassSource() {
+		$source = <<<'SOURCE'
+<?php
+
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
+
+class Client extends Values {
+
+	protected $authenticated;
+
+	public function __construct() {
+		parent::__construct();
+		$this->authenticated = FALSE;
+	}
+
+	public function setAuthenticated($authenticated) {
+		$this->authenticated = $authenticated;
+	}
+
+	public function isAuthenticated() {
+		return $this->authenticated;
 	}
 
 }
