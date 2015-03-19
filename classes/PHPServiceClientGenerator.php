@@ -75,11 +75,13 @@ abstract class ServiceClient {
 	}
 
 	protected function addRequest($method, $params, $responseClassName) {
+		if (!empty($params) && !$params->isInitialized()) {
+			throw new UninitializedMessageException();
+		}
 		$request = new Request();
 		$request->setMethod($method);
-		$request->setParams($params);
+		$request->setParams(empty($params) ? NULL : $params->toStdClass());
 		$request->setId($this->getId());
-
 		$this->requests[$this->getLastId()] = array(
 			'request' => $request,
 			'responseClassName' => $responseClassName,
@@ -111,9 +113,12 @@ abstract class ServiceClient {
 			}
 			$data = json_encode($requests);
 		} else {
+			if (!empty($params) && !$params->isInitialized()) {
+				throw new UninitializedMessageException();
+			}
 			$request = new Request();
 			$request->setMethod($method);
-			$request->setParams($params);
+			$request->setParams(empty($params) ? NULL : $params->toStdClass());
 			$request->setId($this->getId());
 			$data = json_encode($request->toStdClass());
 		}
@@ -195,11 +200,11 @@ SOURCE;
 				$source .= <<<SOURCE
 
 	public function {$rpcName}(\$params) {
-		return \$this->invoke('{$rpcName}', \$params->toStdClass(), '{$returns}');
+		return \$this->invoke('{$rpcName}', \$params, '{$returns}');
 	}
 
 	public function add{$rpcName}Request(\$params) {
-		return \$this->addRequest('{$rpcName}', \$params->toStdClass(), '{$returns}');
+		return \$this->addRequest('{$rpcName}', \$params, '{$returns}');
 	}
 
 SOURCE;
