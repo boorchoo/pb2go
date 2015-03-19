@@ -38,11 +38,13 @@ abstract class ServiceClient {
 
 	protected $url;
 	protected $requestHeaders;
+	protected $requests;
 	protected $id;
 
 	protected function __construct($url) {
 		$this->url = $url;
 		$this->requestHeaders = array();
+		$this->requests = array();
 		$this->id = 0;
 	}
 
@@ -72,7 +74,28 @@ abstract class ServiceClient {
 		}
 	}
 
-	public function getId() {
+	protected function addRequest($method, $params, $responseClassName) {
+		$request = new Request();
+		$request->setMethod($method);
+		$request->setParams($params);
+		$request->setId($this->getId());
+
+		$this->requests[$this->getLastId()] = array(
+			'request' => $request,
+			'responseClassName' => $responseClassName,
+		);
+		return $this->getLastId();
+	}
+
+	protected function getRequestResponseClassName($id) {
+		return isset($this->requests[$id]['responseClassName']) ? $this->requests[$id]['responseClassName'] : NULL; 
+	}
+
+	public function clearRequests() {
+		$this->requests = array();
+	}
+
+	protected function getId() {
 		return ++$this->id;
 	}
 
@@ -80,31 +103,59 @@ abstract class ServiceClient {
 		return $this->id;
 	}
 
-	protected function invoke($method, $params) {
-		$request = new Request();
-		$request->setMethod($method);
-		$request->setParams($params);
-		$request->setId($this->getId());
-	
+	protected function invoke($method = NULL, $params = NULL, $responseClassName = NULL) {
+		if (empty($method)) {
+			$requests = array();
+			foreach ($this->requests as $request) {
+				array_push($requests, $request['request']->toStdClass());
+			}
+			$data = json_encode($requests);
+		} else {
+			$request = new Request();
+			$request->setMethod($method);
+			$request->setParams($params);
+			$request->setId($this->getId());
+			$data = json_encode($request->toStdClass());
+		}
+
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $this->url);
 		curl_setopt($ch, CURLOPT_POST, 1);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $request->serialize());
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
 		$requestHeaders = array();
 		foreach ($this->requestHeaders as $header => $value) {
 			array_push($requestHeaders, "{$header}: {$value}");
 		}
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $requestHeaders);
-		$_response = curl_exec($ch);
+		$output = json_decode(curl_exec($ch));
 		curl_close ($ch);
-	
-		$response = Response::parse($_response);
+
+		if (is_array($output)) {
+			$results = array();
+			foreach ($output as $object) {
+				$response = Response::fromStdClass($object);
+				if ($response->hasError()) {
+					$error = $response->getError();
+					continue;
+				}
+				$responseClassName = $this->getRequestResponseClassName($response->getId());
+				$results[$response->getId()] = empty($responseClassName) ? $response->getResult() : $responseClassName::fromStdClass($response->getResult());
+			}
+			$this->clearRequests();
+			return $results;
+		}
+
+		$response = Response::fromStdClass($output);
 		if ($response->hasError()) {
 			$error = $response->getError();
 			throw new \Exception($error->getMessage(), $error->getCode(), NULL);
 		}
-		return $response->getResult();
+		return empty($responseClassName) ? $response->getResult() : $responseClassName::fromStdClass($response->getResult());
+	}
+
+	public function invokeAll() {
+		return $this->invoke();
 	}
 
 }
@@ -140,14 +191,15 @@ SOURCE;
 		if (!empty($service['rpcs'])) {
 			foreach ($service['rpcs'] as $rpcName => $rpc) {
 				$returnsType = Registry::getType($rpc['returns']);
-				$returns = str_replace('.', '_', $returnsType['name']);
-				if ($service['package'] !== $returnsType['package']) {
-					$returns = (empty($returnsType['package']) ? '' : '\\' . $this->getNamespace($returnsType['package'])) . '\\' . $returns;
-				}
+				$returns = (empty($returnsType['package']) ? '' : '\\' . $this->getNamespace($returnsType['package'])) . '\\' . str_replace('.', '_', $returnsType['name']);
 				$source .= <<<SOURCE
 
 	public function {$rpcName}(\$params) {
-		return {$returns}::fromStdClass(\$this->invoke('{$rpcName}', \$params->toStdClass()));
+		return \$this->invoke('{$rpcName}', \$params->toStdClass(), '{$returns}');
+	}
+
+	public function add{$rpcName}Request(\$params) {
+		return \$this->addRequest('{$rpcName}', \$params->toStdClass(), '{$returns}');
 	}
 
 SOURCE;

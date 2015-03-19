@@ -122,67 +122,103 @@ abstract class Service {
 	}
 
 	public function run() {
+		$jsonp = filter_input(INPUT_GET, 'jsonp');
 		try {
 			if (empty($this->configurationClassName)) {
 				$config = new Values();
 			} else {
 				$config = new $this->configurationClassName();
 			}
-
 			$client = new Client();
 			if (!empty($this->authenticationClassName)) {
 				$authentication = new $this->authenticationClassName($config, $client);
 				$authentication->authenticate();
 			}
-
-			$request = Request::parse(file_get_contents("php://input"));
-			//$isNotification = NULL === $request->getId();
-
-			if (FALSE === array_key_exists($request->getMethod(), $this->methods)) {
-				throw new MethodNotFound();
+			$input = json_decode(file_get_contents("php://input"));
+			if ($input === NULL) {
+				throw new ParseError();
 			}
-
-			try {
-				$requestClassName = $this->methods[$request->getMethod()]['requestClassName'];
-				$params = $requestClassName::fromStdClass($request->getParams());
-			} catch (\Exception $e) {
-				throw new InvalidParams($e);
-			}
-
-			try {
-				$methodClassName = $this->methods[$request->getMethod()]['methodClassName'];
-				$method = new $methodClassName($config, $client);
-				$authorized = $method->authorize($params);
-			} catch (\Exception $e) {
-				throw new InternalError($e);
-			}
-
-			if ($authorized) {
-				try {
-					$result = $method->invoke($params)->toStdClass();
-				} catch (\Exception $e) {
-					throw new InternalError($e);
+			if (is_array($input)) {
+				if (empty($input)) {
+					throw new InvalidRequest();
 				}
+				$responses = array();
+				foreach ($input as $value) {
+					try {
+						$request = Request::fromStdClass($value);
+						if (!array_key_exists($request->getMethod(), $this->methods)) {
+							throw new MethodNotFound();
+						}
+						$requestClassName = $this->methods[$request->getMethod()]['requestClassName'];
+						$params = $requestClassName::fromStdClass($request->getParams());
+						$methodClassName = $this->methods[$request->getMethod()]['methodClassName'];
+						$method = new $methodClassName($config, $client);
+						if (!$method->authorize($params)) {
+							throw new InternalError(new \Exception("Not authorized"));
+						}
+						$response = new Response();
+						$response->setResult($method->invoke($params)->toStdClass());
+					} catch (\Exception $e) {
+						$response = Response::fromException($e);
+					}
+					if (isset($request) && !$request->hasId()) {
+						continue;
+					}
+					$response->setId(isset($request) ? $request->getId() : NULL);
+					array_push($responses, $response->toStdClass());
+				}
+				if (empty($responses)) {
+					die();
+				}
+				if (empty($jsonp)) {
+					header('Content-Type: application/json');
+					echo json_encode($responses);
+				} else {
+					header('Content-Type: application/javascript');
+					echo "{$jsonp}(" . json_encode($responses) . ');';
+				}
+				die();
 			} else {
-				throw new InternalError(new \Exception("Not authorized"));
+				try {
+					$request = Request::fromStdClass($input);
+					if (!array_key_exists($request->getMethod(), $this->methods)) {
+						throw new MethodNotFound();
+					}
+					$requestClassName = $this->methods[$request->getMethod()]['requestClassName'];
+					$params = $requestClassName::fromStdClass($request->getParams());
+					$methodClassName = $this->methods[$request->getMethod()]['methodClassName'];
+					$method = new $methodClassName($config, $client);
+					if (!$method->authorize($params)) {
+						throw new InternalError(new \Exception("Not authorized"));
+					}
+					$response = new Response();
+					$response->setResult($method->invoke($params)->toStdClass());
+				} catch (\Exception $e) {
+					$response = Response::fromException($e);
+				}
+				if (isset($request) && !$request->hasId()) {
+					die();
+				}
+				$response->setId(isset($request) ? $request->getId() : NULL);
+				if (empty($jsonp)) {
+					header('Content-Type: application/json');
+					echo json_encode($response->toStdClass());
+				} else {
+					header('Content-Type: application/javascript');
+					echo "{$jsonp}(" . json_encode($response->toStdClass()) . ');';
+				}
+				die();
 			}
-
-			$response = new Response();
-			$response->setResult($result);
-			$response->setId($request->getId());
 		} catch (\Exception $e) {
-			$response = new Response();
-			$response->setError(new Response_Error($e->getCode(), $e->getMessage(), NULL));
-			$response->setId(isset($request) ? $request->getId() : NULL);
-		}
-
-		$jsonp = filter_input(INPUT_GET, 'jsonp');
-		if (empty($jsonp)) {
-			header('Content-Type: application/json');
-			echo $response->serialize();
-		} else {
-			header('Content-Type: application/javascript');
-			echo "{$jsonp}({$response->serialize()});";
+			$response = Response::fromException($e);
+			if (empty($jsonp)) {
+				header('Content-Type: application/json');
+				echo json_encode($response->toStdClass());
+			} else {
+				header('Content-Type: application/javascript');
+				echo "{$jsonp}(" . json_encode($response->toStdClass()) . ');';
+			}
+			die();
 		}
 	}
 

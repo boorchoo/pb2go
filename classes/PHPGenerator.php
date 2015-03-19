@@ -143,6 +143,7 @@ class Request {
 	protected $method = NULL;
 	protected $params = NULL;
 	protected $id = NULL;
+	protected $hasId = FALSE;
 
 	public function __construct() {
 	}
@@ -151,16 +152,16 @@ class Request {
 		return $this->jsonrpc;
 	}
 
-	public function setJsonrpc($value) {
-		$this->jsonrpc = $value;
+	public function setJsonrpc($jsonrpc) {
+		$this->jsonrpc = $jsonrpc;
 	}
 
 	public function getMethod() {
 		return $this->method;
 	}
 
-	public function setMethod($value) {
-		$this->method = $value;
+	public function setMethod($method) {
+		$this->method = $method;
 	}
 
 	public function hasParams() {
@@ -171,73 +172,58 @@ class Request {
 		return $this->params;
 	}
 
-	public function setParams($value) {
-		$this->params = $value;
+	public function setParams($params) {
+		$this->params = $params;
 	}
 
 	public function hasId() {
-		return NULL != $this->id;
+		return $this->hasId;
 	}
 
 	public function getId() {
 		return $this->id;
 	}
 
-	public function setId($value) {
-		$this->id = $value;
+	public function setId($id) {
+		$this->id = $id;
+		$this->hasId = TRUE;
+	}
+
+	public function clearId() {
+		$this->id = NULL;
+		$this->hasId = FALSE;
 	}
 
 	public function toStdClass() {
-		$value = new \stdClass();
-		$value->jsonrpc = $this->getJsonrpc();
-		$value->method = $this->getMethod();
+		$object = new \stdClass();
+		$object->jsonrpc = $this->getJsonrpc();
+		$object->method = $this->getMethod();
 		if ($this->hasParams()) {
-			$value->params = $this->getParams();
+			$object->params = $this->getParams();
 		}
 		if ($this->hasId()) {
-			$value->id = $this->getId();
-		}
-		return $value;
-	}
-
-	public function serialize() {
-		return json_encode($this->toStdClass());
-	}
-
-	public static function fromStdClass($value) {
-		$object = new Request();
-		if (isset($value->jsonrpc)) {
-			if ($value->jsonrpc === '2.0') {
-				$object->setJsonrpc($value->jsonrpc);
-			} else {
-				throw new InvalidRequest();
-			}
-		} else {
-			throw new InvalidRequest();
-		}
-		if (isset($value->method)) {
-			$object->setMethod($value->method);
-		} else {
-			throw new InvalidRequest();
-		}
-		if (isset($value->params)) {
-			$object->setParams($value->params);
-		}
-		if (isset($value->id)) {
-			$object->setId($value->id);
+			$object->id = $this->getId();
 		}
 		return $object;
 	}
 
-	public static function parse($value) {
-		if (empty($value)) {
-			throw new ParseError();
+	public static function fromStdClass($object) {
+		$request = new Request();
+		if (!isset($object->jsonrpc) || $object->jsonrpc !== '2.0') {
+			throw new InvalidRequest();
 		}
-		$object = json_decode($value);
-		if ($object === NULL) {
-			throw new ParseError();
+		$request->setJsonrpc($object->jsonrpc);
+		if (!isset($object->method)) {
+			throw new InvalidRequest();
 		}
-		return self::fromStdClass($object);
+		$request->setMethod($object->method);
+		if (isset($object->params)) {
+			$request->setParams($object->params);
+		}
+		if (property_exists($object, 'id')) {
+			$request->setId($object->id);
+		}
+		return $request;
 	}
 
 }
@@ -268,8 +254,8 @@ class Response {
 		return $this->jsonrpc;
 	}
 
-	public function setJsonrpc($value) {
-		$this->jsonrpc = $value;
+	public function setJsonrpc($jsonrpc) {
+		$this->jsonrpc = $jsonrpc;
 	}
 
 	public function hasResult() {
@@ -280,8 +266,8 @@ class Response {
 		return $this->result;
 	}
 
-	public function setResult($value) {
-		$this->result = $value;
+	public function setResult($result) {
+		$this->result = $result;
 	}
 
 	public function hasError() {
@@ -292,53 +278,51 @@ class Response {
 		return $this->error;
 	}
 
-	public function setError($value) {
-		$this->error = $value;
+	public function setError($error) {
+		$this->error = $error;
 	}
 
 	public function getId() {
 		return $this->id;
 	}
 
-	public function setId($value) {
-		$this->id = $value;
+	public function setId($id) {
+		$this->id = $id;
 	}
 
 	public function toStdClass() {
-		$value = new \stdClass();
-		$value->jsonrpc = $this->getJsonrpc();
+		$object = new \stdClass();
+		$object->jsonrpc = $this->getJsonrpc();
 		if ($this->hasError()) {
-			$value->error = $this->getError()->toStdClass();
+			$object->error = $this->getError()->toStdClass();
 		} else {
-			$value->result = $this->getResult();
+			$object->result = $this->getResult();
 		}
-		$value->id = $this->getId();
-		return $value;
-	}
-
-	public function serialize() {
-		return json_encode($this->toStdClass());
-	}
-
-	public static function fromStdClass($value) {
-		$object = new Response();
-		if (isset($value->jsonrpc)) {
-			$object->setJsonrpc($value->jsonrpc);
-		}
-		if (isset($value->result)) {
-			$object->setResult($value->result);
-		}
-		if (isset($value->error)) {
-			$object->setError(Response_Error::fromStdClass($value->error));
-		}
-		if (isset($value->id)) {
-			$object->setId($value->id);
-		}
+		$object->id = $this->getId();
 		return $object;
 	}
 
-	public static function parse($value) {
-		return self::fromStdClass(json_decode($value));
+	public static function fromStdClass($object) {
+		$response = new Response();
+		if (isset($object->jsonrpc)) {
+			$response->setJsonrpc($object->jsonrpc);
+		}
+		if (isset($object->result)) {
+			$response->setResult($object->result);
+		}
+		if (isset($object->error)) {
+			$response->setError(Response_Error::fromStdClass($object->error));
+		}
+		if (isset($object->id)) {
+			$response->setId($object->id);
+		}
+		return $response;
+	}
+
+	public static function fromException($e) {
+		$response = new Response();
+		$response->setError(new Response_Error($e->getCode(), $e->getMessage(), NULL));
+		return $response;
 	}
 
 }
