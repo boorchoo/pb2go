@@ -119,21 +119,22 @@ var JSONRPC = (function($this) {
 		var method = null;
 		var params = null;
 		var id = null;
+		var hasId = false;
 
 		this.getJsonrpc = function() {
 			return jsonrpc;
 		};
 
-		this.setJsonrpc = function(value) {
-			jsonrpc = value;
+		this.setJsonrpc = function(_jsonrpc) {
+			jsonrpc = _jsonrpc;
 		};
 
 		this.getMethod = function() {
 			return method;
 		};
 
-		this.setMethod = function(value) {
-			method = value;
+		this.setMethod = function(_method) {
+			method = _method;
 		};
 
 		this.hasParams = function() {
@@ -144,60 +145,60 @@ var JSONRPC = (function($this) {
 			return params;
 		};
 
-		this.setParams = function(value) {
-			params = value;
+		this.setParams = function(_params) {
+			params = _params;
 		};
 
 		this.hasId = function() {
-			return null !== id;
+			return hasId;
 		};
 
 		this.getId = function() {
 			return id;
 		};
 
-		this.setId = function(value) {
-			id = value;
+		this.setId = function(_id) {
+			id = _id;
+			hasId = true;
 		};
+
+		this.clearId = function() {
+			id = null;
+			hasId = false;
+		}
 
 		this.toObject = function() {
-			var value = new Object();
-			value.jsonrpc = this.getJsonrpc();
-			value.method = this.getMethod();
+			var object = new Object();
+			object.jsonrpc = this.getJsonrpc();
+			object.method = this.getMethod();
 			if (this.hasParams()) {
-				value.params = this.getParams();
+				object.params = this.getParams();
 			}
 			if (this.hasId()) {
-				value.id = this.getId();
+				object.id = this.getId();
 			}
-			return value;
-		};
-
-		this.serialize = function() {
-			return JSON.stringify(this.toObject());
+			return object;
 		};
 
 	};
 
-	Request.fromObject = function(value) {
-		var object = new Request();
-		if (typeof value.jsonrpc !== 'undefined') {
-			object.setJsonrpc(value.jsonrpc);
+	Request.fromObject = function(object) {
+		var request = new Request();
+		if (typeof object.jsonrpc === 'undefined' || object.jsonrpc !== '2.0') {
+			throw 'Invalid Request';
 		}
-		if (typeof value.method !== 'undefined') {
-			object.setMethod(value.method);
+		request.setJsonrpc(object.jsonrpc);
+		if (typeof object.method === 'undefined') {
+			throw 'Invalid Request';
 		}
-		if (typeof value.params !== 'undefined') {
-			object.setParams(value.params);
+		request.setMethod(object.method);
+		if (typeof object.params !== 'undefined') {
+			request.setParams(object.params);
 		}
-		if (typeof value.id !== 'undefined') {
-			object.setId(value.id);
+		if (typeof object.id !== 'undefined') {
+			request.setId(object.id);
 		}
-		return object;
-	};
-
-	Request.parse = function(value) {
-		return Request.fromObject(JSON.parse(value));
+		return request;
 	};
 
 	$this.Request = Request;
@@ -213,8 +214,8 @@ var JSONRPC = (function($this) {
 			return jsonrpc;
 		};
 
-		this.setJsonrpc = function(value) {
-			jsonrpc = value;
+		this.setJsonrpc = function(_jsonrpc) {
+			jsonrpc = _jsonrpc;
 		};
 
 		this.hasResult = function() {
@@ -225,8 +226,8 @@ var JSONRPC = (function($this) {
 			return result;
 		};
 
-		this.setResult = function(value) {
-			result = value;
+		this.setResult = function(_result) {
+			result = _result;
 		};
 
 		this.hasError = function() {
@@ -237,55 +238,47 @@ var JSONRPC = (function($this) {
 			return error;
 		};
 
-		this.setError = function(value) {
-			error = value;
+		this.setError = function(_error) {
+			error = _error;
 		};
 
 		this.getId = function() {
 			return id;
 		};
 
-		this.setId = function(value) {
-			id = value;
+		this.setId = function(_id) {
+			id = _id;
 		};
 
 		this.toObject = function() {
-			var value = new Object();
-			value.jsonrpc = this.getJsonrpc();
+			var object = new Object();
+			object.jsonrpc = this.getJsonrpc();
 			if (this.hasError()) {
-				value.error = this.getError();
+				object.error = this.getError().toObject();
 			} else {
-				value.result = this.getResult();
+				object.result = this.getResult();
 			}
-			value.id = this.getId();
-			return value;
-		};
-
-		this.serialize = function() {
-			return JSON.stringify(this.toObject());
+			object.id = this.getId();
+			return object;
 		};
 
 	};
 
-	Response.fromObject = function(value) {
-		var object = new Response();
-		if (typeof value.jsonrpc !== 'undefined') {
-			object.setJsonrpc(value.jsonrpc);
+	Response.fromObject = function(object) {
+		var response = new Response();
+		if (typeof object.jsonrpc !== 'undefined') {
+			response.setJsonrpc(object.jsonrpc);
 		}
-		if (typeof value.result !== 'undefined') {
-			object.setResult(value.result);
+		if (typeof object.result !== 'undefined') {
+			response.setResult(object.result);
 		}
-		if (typeof value.error !== 'undefined') {
-			object.setError(Response.Error.fromObject(value.error));
+		if (typeof object.error !== 'undefined') {
+			response.setError(Response.Error.fromObject(object.error));
 		}
-		if (typeof value.id !== 'undefined') {
-			object.setId(value.id);
+		if (typeof object.id !== 'undefined') {
+			response.setId(object.id);
 		}
-		return object;
-	};
-
-	Response.parse = function(value) {
-		return Response.fromObject(JSON.parse(value));
+		return response;
 	};
 
 	$this.Response = Response;
@@ -296,20 +289,20 @@ var JSONRPC = (function($this) {
 		var message = null;
 		var data = null;
 
-		this.getCode = function () {
+		this.getCode = function() {
 			return code;
 		};
 
-		this.setCode = function(value) {
-			code = value;
+		this.setCode = function(_code) {
+			code = _code;
 		};
 
 		this.getMessage = function() {
 			return message;
 		};
 
-		this.setMessage = function(value) {
-			message = value;
+		this.setMessage = function(_message) {
+			message = _message;
 		};
 
 		this.hasData = function() {
@@ -320,42 +313,34 @@ var JSONRPC = (function($this) {
 			return data;
 		};
 
-		this.setData = function(value) {
-			data = value;
+		this.setData = function(_data) {
+			data = _data;
 		};
 
 		this.toObject = function() {
-			var value = new Object();
-			value.code = this.getCode();
-			value.message = this.getMessage();
+			var object = new Object();
+			object.code = this.getCode();
+			object.message = this.getMessage();
 			if (this.hasData()) {
-				value.data = this.getData();
+				object.data = this.getData();
 			}
-			return value;
-		};
-
-		this.serialize = function() {
-			return JSON.stringify(this.toObject());
+			return object;
 		};
 
 	};
 
-	Response.Error.fromObject = function(value) {
-		var object = new Response.Error();
-		if (typeof value.code !== 'undefined') {
-			object.setCode(value.code);
+	Response.Error.fromObject = function(object) {
+		var error = new Response.Error();
+		if (typeof object.code !== 'undefined') {
+			error.setCode(object.code);
 		}
-		if (typeof value.message !== 'undefined') {
-			object.setMessage(value.message);
+		if (typeof object.message !== 'undefined') {
+			error.setMessage(object.message);
 		}
-		if (typeof value.data !== 'undefined') {
-			object.setData(value.data);
+		if (typeof object.data !== 'undefined') {
+			error.setData(object.data);
 		}
-		return object;
-	};
-
-	Response.Error.parse = function(value) {
-		return Response.Error.fromObject(JSON.parse(value));
+		return error;
 	};
 
 	var ServiceClient = function(_url) {
@@ -390,7 +375,7 @@ var JSONRPC = (function($this) {
 			}
 		}
 
-		getId = function() {
+		this.getId = function() {
 			return ++id;
 		};
 
@@ -398,11 +383,7 @@ var JSONRPC = (function($this) {
 			return id;
 		};
 
-		this.invoke = function(method, params, resultHandler, errorHandler) {
-			var request = new JSONRPC.Request();
-			request.setMethod(method);
-			request.setParams(params.toObject());
-			request.setId(getId());
+		this.send = function(request, handler) {
 			var xhr = new XMLHttpRequest();
 			xhr.open('POST', url, true);
 			for (var header in requestHeaders) {
@@ -411,16 +392,32 @@ var JSONRPC = (function($this) {
 			xhr.onreadystatechange = function () {
 				if (xhr.readyState === 4) {
 					if (xhr.status === 200) {
-						var response = Response.parse(xhr.responseText);
-						if (response.hasError()) {
-							errorHandler(response.getError());
-						} else {
-							resultHandler(response.getResult());
-						}
+						handler(JSON.parse(xhr.responseText));
 					}
 				}
 			};
-			xhr.send(request.serialize());
+			xhr.send(JSON.stringify(request));
+		}
+
+		this.invoke = function(method, params, resultHandler, errorHandler) {
+			if (typeof params === 'undefined' || params === null) {
+				throw 'Invalid params';
+			}
+			if (!params.isInitialized()) {
+				throw 'Uninitialized message';
+			}
+			var request = new Request();
+			request.setMethod(method);
+			request.setParams(params.toObject());
+			request.setId(this.getId());
+			this.send(request.toObject(), function(object) {
+				var response = Response.fromObject(object);
+				if (response.hasError()) {
+					errorHandler(response.getError());
+				} else {
+					resultHandler(response.getResult());
+				}
+			});
 		};
 
 	};
