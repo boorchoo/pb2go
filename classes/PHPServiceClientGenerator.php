@@ -146,18 +146,22 @@ namespace JSONRPC;
 class ServiceClient_Batch {
 
 	protected $serviceClient;
-	protected $requests;
+	protected $request;
+	protected $result;
+	protected $error;
 
 	protected function __construct($serviceClient) {
 		$this->serviceClient = $serviceClient;
-		$this->requests = array();
+		$this->request = array();
+		$this->result = array();
+		$this->error = array();
 	}
 
 	public function getServiceClient() {
 		return $this->serviceClient;
 	}
 
-	protected function add($method, $params, $responseClassName) {
+	protected function addRequest($method, $params, $responseClassName) {
 		if (empty($params)) {
 			throw new InvalidParams();
 		}
@@ -168,46 +172,76 @@ class ServiceClient_Batch {
 		$request->setMethod($method);
 		$request->setParams($params->toStdClass());
 		$request->setId($this->serviceClient->getId());
-		$this->requests[$this->serviceClient->getLastId()] = array(
+		$this->request[$this->serviceClient->getLastId()] = array(
 			'request' => $request,
 			'responseClassName' => $responseClassName,
-			'result' => NULL,
-			'error' => NULL,
 		);
 		return $this->serviceClient->getLastId();
 	}
 
+	protected function clearRequest() {
+		$this->request = array();
+	}
+
+	public function getResultCount() {
+		return count($this->result);
+	}
+
 	public function hasResult($id) {
-		return isset($this->requests[$id]['result']);
+		return isset($this->result[$id]);
 	}
 
 	public function getResult($id) {
-		return isset($this->requests[$id]['result']) ? $this->requests[$id]['result'] : NULL;
+		return isset($this->result[$id]) ? $this->result[$id] : NULL;
+	}
+
+	public function getResultArray() {
+		return $this->result;
+	}
+
+	protected function clearResult() {
+		$this->result = array();
+	}
+
+	public function getErrorCount() {
+		return count($this->error);
 	}
 
 	public function hasError($id) {
-		return isset($this->requests[$id]['error']);
+		return isset($this->error[$id]);
 	}
 
 	public function getError($id) {
-		return isset($this->requests[$id]['error']) ? $this->requests[$id]['error'] : NULL;
+		return isset($this->error[$id]) ? $this->error[$id] : NULL;
+	}
+
+	public function getErrorArray() {
+		return $this->error;
+	}
+
+	protected function clearError() {
+		$this->error = array();
 	}
 
 	public function send() {
 		$requests = array();
-		foreach ($this->requests as $request) {
+		foreach ($this->request as $request) {
 			array_push($requests, $request['request']->toStdClass());
 		}
 		$objects = $this->serviceClient->send($requests);
+		$this->clearResult();
+		$this->clearError();
 		foreach ($objects as $object) {
 			$response = Response::fromStdClass($object);
 			if ($response->hasError()) {
-				$this->requests[$response->getId()]['error'] = $response->getError();
+				$this->error[$response->getId()] = $response->getError();
 				continue;
 			}
-			$responseClassName = $this->requests[$response->getId()]['responseClassName'];
-			$this->requests[$response->getId()]['result'] = $responseClassName::fromStdClass($response->getResult());
+			$responseClassName = $this->request[$response->getId()]['responseClassName'];
+			$this->result[$response->getId()] = $responseClassName::fromStdClass($response->getResult());
 		}
+		$this->clearRequest();
+		return $this;
 	}
 
 }
@@ -299,7 +333,7 @@ SOURCE;
 				$source .= <<<SOURCE
 
 	public function {$rpcName}(\$params) {
-		return \$this->add('{$rpcName}', \$params, '{$returns}');
+		return \$this->addRequest('{$rpcName}', \$params, '{$returns}');
 	}
 
 SOURCE;
