@@ -424,6 +424,111 @@ var JSONRPC = (function($this) {
 
 	$this.ServiceClient = ServiceClient;
 
+	ServiceClient.Batch = function(_serviceClient) {
+
+		var serviceClient = _serviceClient;
+		var request = [];
+		var result = [];
+		var error = [];
+
+		this.getServiceClient = function() {
+			return serviceClient;
+		};
+
+		this.addRequest = function(method, params, responseClass) {
+			if (typeof params === 'undefined' || params === null) {
+				throw 'Invalid params';
+			}
+			if (!params.isInitialized()) {
+				throw 'Uninitialized message';
+			}
+			var _request = new Request();
+			_request.setMethod(method);
+			_request.setParams(params.toObject());
+			_request.setId(serviceClient.getId());
+			request[serviceClient.getLastId()] = {
+				request: _request,
+				responseClass: responseClass
+			};
+			return serviceClient.getLastId();
+		};
+
+		this.clearRequest = function() {
+			request = [];
+		};
+
+		this.getResultCount = function() {
+			return result.length;
+		};
+
+		this.hasResult = function(id) {
+			return typeof result[id] === 'undefined' ? false : true;
+		};
+
+		this.getResult = function(id) {
+			return typeof result[id] === 'undefined' ? null : result[id];
+		};
+
+		this.getResultArray = function() {
+			return result;
+		};
+
+		this.setResultFromObject = function(id, object) {
+			result[id] = request[id].responseClass.fromObject(object);
+		};
+
+		this.clearResult = function() {
+			result = [];
+		};
+
+		this.getErrorCount = function() {
+			return error.length;
+		};
+
+		this.hasError = function(id) {
+			return typeof error[id] === 'undefined' ? false : true;
+		};
+
+		this.getError = function(id) {
+			return typeof error[id] === 'undefined' ? null : error[id];
+		};
+
+		this.getErrorArray = function() {
+			return error;
+		};
+
+		this.setError = function(id, _error) {
+			error[id] = _error;
+		};
+
+		this.clearError = function() {
+			error = [];
+		};
+
+		this.send = function(handler) {
+			var requests = [];
+			for (var index in request) {
+				requests.push(request[index].request.toObject());
+			}
+			var $this = this;
+			serviceClient.send(requests, function(objects) {
+				$this.clearResult();
+				$this.clearError();
+				for (var index in objects) {
+					var response = Response.fromObject(objects[index]);
+					if (response.hasError()) {
+						$this.setError(response.getId(), response.getError());
+					} else {
+						$this.setResultFromObject(response.getId(), response.getResult());
+					}
+				}
+				$this.clearRequest();
+				handler($this);
+			});
+		};
+
+	};
+
 	return $this;
 }(JSONRPC || {}));
 
@@ -773,6 +878,10 @@ SOURCE;
 		this.base = JSONRPC.ServiceClient;
 		this.base(_url);
 
+		this.newBatch = function() {
+			return new {$service['service']}Client.Batch(this);
+		};
+
 
 SOURCE;
 		foreach ($service['rpcs'] as $rpcName => $rpc) {
@@ -811,6 +920,31 @@ SOURCE;
 
 SOURCE;
 		}
+		$source .= <<<SOURCE
+
+	{$service['service']}Client.Batch = function(_serviceClient) {
+
+		this.base = JSONRPC.ServiceClient.Batch;
+		this.base(_serviceClient);
+
+
+SOURCE;
+		foreach ($service['rpcs'] as $rpcName => $rpc) {
+			$returnsType = Registry::getType($rpc['returns']);
+			$returns = ($returnsType['package'] === $service['package'] ? '' : "{$returnsType['package']}.") . $returnsType['name'];
+			$source .= <<<SOURCE
+		this.{$rpcName} = function(params) {
+			return this.addRequest('$rpcName', params, {$returns});
+		};
+
+
+SOURCE;
+		}
+		$source .= <<<SOURCE
+	};
+	{$service['service']}Client.Batch.prototype = new JSONRPC.ServiceClient.Batch;
+
+SOURCE;
 		return $source;
 	}
 
