@@ -2,8 +2,75 @@
 
 class JavaScriptGenerator extends AbstractGenerator {
 	
+	public static $type = array(
+		'double' => array(
+			'type' => 'number',
+			'default' => '0.0',
+		),
+		'float' => array(
+			'type' => 'number',
+			'default' => '0.0',
+		),
+		'int32' => array(
+			'type' => 'number',
+			'default' => '0',
+		),
+		'int64' => array(
+			'type' => 'number',
+			'default' => '0',
+		),
+		'uint32' => array(
+			'type' => 'number',
+			'default' => '0',
+		),
+		'uint64' => array(
+			'type' => 'number',
+			'default' => '0',
+		),
+		'sint32' => array(
+			'type' => 'number',
+			'default' => '0',
+		),
+		'sint64' => array(
+			'type' => 'number',
+			'default' => '0',
+		),
+		'fixed32' => array(
+			'type' => 'number',
+			'default' => '0',
+		),
+		'fixed64' => array(
+			'type' => 'number',
+			'default' => '0',
+		),
+		'sfixed32' => array(
+			'type' => 'number',
+			'default' => '0',
+		),
+		'sfixed64' => array(
+			'type' => 'number',
+			'default' => '0',
+		),
+		'bool' => array(
+			'type' => 'boolean',
+			'default' => 'false',
+		),
+		'string' => array(
+			'type' => 'string',
+			'default' => "''",
+		),
+		'bytes' => array(
+			'type' => 'string',
+			'default' => "''",
+		),
+	);
+	
 	public function __construct($fileName, $proto) {
 		parent::__construct($fileName, $proto);
+	}
+	
+	public function getType($type) {
+		return isset(self::$type[$type]) ? self::$type[$type] : NULL;
 	}
 	
 	public function generate($path) {
@@ -399,23 +466,82 @@ var JSONRPC = (function($this) {
 			xhr.send(JSON.stringify(request));
 		}
 
-		this.invoke = function(method, params, resultHandler, errorHandler) {
-			if (typeof params === 'undefined' || params === null) {
-				throw 'Invalid params';
-			}
-			if (!params.isInitialized()) {
-				throw 'Uninitialized message';
+		this.invoke = function(method, params, paramsType, resultType, resultHandler, errorHandler) {
+			var _params;
+			if (paramsType === null) {
+				if (params !== null) {
+					throw 'Invalid params';
+				}
+				_params = null;
+			} else if (paramsType === 'number') {
+				if (typeof params !== 'number') {
+					throw 'Invalid params';
+				}
+				_params = params;
+			} else if (paramsType === 'boolean') {
+				if (typeof params !== 'boolean') {
+					throw 'Invalid params';
+				}
+				_params = params;
+			} else if (paramsType === 'string') {
+				if (typeof params !== 'string') {
+					throw 'Invalid params';
+				}
+				_params = params;
+			} else {
+				if (typeof params === 'undefined' || params === null) {
+					throw 'Invalid params';
+				}
+				if (!params.isInitialized()) {
+					throw 'Invalid params';
+				}
+				_params = params.toObject();
 			}
 			var request = new Request();
 			request.setMethod(method);
-			request.setParams(params.toObject());
+			request.setParams(_params);
 			request.setId(this.getId());
 			this.send(request.toObject(), function(object) {
 				var response = Response.fromObject(object);
 				if (response.hasError()) {
-					errorHandler(response.getError());
+					if (typeof errorHandler !== 'undefined') {
+						errorHandler(response.getError());
+					}
 				} else {
-					resultHandler(response.getResult());
+					var result = response.getResult();
+					var _result;
+					if (resultType === null) {
+						if (result !== null) {
+							throw 'Invalid protocol buffer';
+						}
+						_result = null;
+					} else if (resultType === 'number') {
+						if (typeof result !== 'number') {
+							throw 'Invalid protocol buffer';
+						}
+						_result = result;
+					} else if (resultType === 'boolean') {
+						if (typeof result !== 'boolean') {
+							throw 'Invalid protocol buffer';
+						}
+						_result = result;
+					} else if (resultType === 'string') {
+						if (typeof result !== 'string') {
+							throw 'Invalid protocol buffer';
+						}
+						_result = result;
+					} else {
+						if (typeof result === 'undefined' || result === null) {
+							throw 'Invalid protocol buffer';
+						}
+						_result = resultType.fromObject(result);
+						if (!_result.isInitialized()) {
+							throw 'Invalid protocol buffer';
+						}
+					}
+					if (typeof resultHandler !== 'undefined') {
+						resultHandler(_result);
+					}
 				}
 			});
 		};
@@ -435,20 +561,44 @@ var JSONRPC = (function($this) {
 			return serviceClient;
 		};
 
-		this.addRequest = function(method, params, responseClass) {
-			if (typeof params === 'undefined' || params === null) {
-				throw 'Invalid params';
-			}
-			if (!params.isInitialized()) {
-				throw 'Uninitialized message';
+		this.addRequest = function(method, params, paramsType, resultType) {
+			var _params;
+			if (paramsType === null) {
+				if (params !== null) {
+					throw 'Invalid params';
+				}
+				_params = null;
+			} else if (paramsType === 'number') {
+				if (typeof params !== 'number') {
+					throw 'Invalid params';
+				}
+				_params = params;
+			} else if (paramsType === 'boolean') {
+				if (typeof params !== 'boolean') {
+					throw 'Invalid params';
+				}
+				_params = params;
+			} else if (paramsType === 'string') {
+				if (typeof params !== 'string') {
+					throw 'Invalid params';
+				}
+				_params = params;
+			} else {
+				if (typeof params === 'undefined' || params === null) {
+					throw 'Invalid params';
+				}
+				if (!params.isInitialized()) {
+					throw 'Invalid params';
+				}
+				_params = params.toObject();
 			}
 			var _request = new Request();
 			_request.setMethod(method);
-			_request.setParams(params.toObject());
+			_request.setParams(_params);
 			_request.setId(serviceClient.getId());
 			request[serviceClient.getLastId()] = {
 				request: _request,
-				responseClass: responseClass
+				resultType: resultType
 			};
 			return serviceClient.getLastId();
 		};
@@ -473,8 +623,34 @@ var JSONRPC = (function($this) {
 			return result;
 		};
 
-		this.setResultFromObject = function(id, object) {
-			result[id] = request[id].responseClass.fromObject(object);
+		this.setResult = function(id, _result) {
+			var resultType = request[id].resultType;
+			if (resultType === null) {
+				if (_result !== null) {
+					throw 'Invalid protocol buffer';
+				}
+			} else if (resultType === 'number') {
+				if (typeof _result !== 'number') {
+					throw 'Invalid protocol buffer';
+				}
+			} else if (resultType === 'boolean') {
+				if (typeof _result !== 'boolean') {
+					throw 'Invalid protocol buffer';
+				}
+			} else if (resultType === 'string') {
+				if (typeof _result !== 'string') {
+					throw 'Invalid protocol buffer';
+				}
+			} else {
+				if (typeof _result === 'undefined' || _result === null) {
+					throw 'Invalid protocol buffer';
+				}
+				_result = resultType.fromObject(_result);
+				if (!_result.isInitialized()) {
+					throw 'Invalid protocol buffer';
+				}
+			}
+			result[id] = _result;
 		};
 
 		this.clearResult = function() {
@@ -519,7 +695,7 @@ var JSONRPC = (function($this) {
 					if (response.hasError()) {
 						$this.setError(response.getId(), response.getError());
 					} else {
-						$this.setResultFromObject(response.getId(), response.getResult());
+						$this.setResult(response.getId(), response.getResult());
 					}
 				}
 				$this.clearRequest();
@@ -802,10 +978,6 @@ SOURCE;
 			return value;
 		};
 
-		this.serialize = function() {
-			return JSON.stringify(this.toObject());
-		};
-
 	};
 
 	{$message['type']}.fromObject = function(value) {
@@ -855,10 +1027,6 @@ SOURCE;
 		return object;
 	};
 
-	{$message['type']}.parse = function(value) {
-		return {$message['type']}.fromObject(JSON.parse(value));
-	};
-
 SOURCE;
 		if (!empty($message['package']) && strpos($message['type'], '.') === FALSE) {
 			$source .= <<<SOURCE
@@ -885,24 +1053,39 @@ SOURCE;
 
 SOURCE;
 		foreach ($service['rpcs'] as $rpcName => $rpc) {
-			$returnsType = Registry::getType($rpc['returns']);
-			$returns = ($returnsType['package'] === $service['package'] ? '' : "{$returnsType['package']}.") . $returnsType['name'];
-			$source .= <<<SOURCE
-		this.{$rpcName} = function(params, resultHandler, errorHandler) {
-			this.invoke('$rpcName', params,
-				function(result) {
-					if (typeof resultHandler === 'undefined') {
-						return;
-					}
-					resultHandler({$returns}.fromObject(result));
-				},
-				function(error) {
-					if (typeof errorHandler === 'undefined') {
-						return;
-					}
-					errorHandler(error);
+			if (empty($rpc['type'])) {
+				$type = 'null';
+				$arg = '';
+				$params = 'null';
+			} else {
+				$typeType = Registry::getType($rpc['type']);
+				if ($typeType['type'] === Registry::PRIMITIVE) {
+					$_type = $this->getType($typeType['name']);
+					$type = "'{$_type['type']}'";
+				} elseif ($typeType['type'] === Registry::ENUM) {
+					$type = "'number'";
+				} else {
+					$type = ($typeType['package'] === $service['package'] ? '' : (empty($typeType['package']) ? '' : "{$typeType['package']}.")) . $typeType['name'];
 				}
-			);
+				$arg = 'params, ';
+				$params = 'params';
+			}
+			if (empty($rpc['returns'])) {
+				$returns = 'null';
+			} else {
+				$returnsType = Registry::getType($rpc['returns']);
+				if ($returnsType['type'] === Registry::PRIMITIVE) {
+					$_type = $this->getType($returnsType['name']);
+					$returns = "'{$_type['type']}'";
+				} elseif ($returnsType['type'] === Registry::ENUM) {
+					$returns = "'number'";
+				} else {
+					$returns = ($returnsType['package'] === $service['package'] ? '' : (empty($returnsType['package']) ? '' : "{$returnsType['package']}.")) . $returnsType['name'];
+				}
+			}
+			$source .= <<<SOURCE
+		this.{$rpcName} = function({$arg}resultHandler, errorHandler) {
+			this.invoke('$rpcName', {$params}, {$type}, {$returns}, resultHandler, errorHandler);
 		};
 
 
@@ -930,11 +1113,39 @@ SOURCE;
 
 SOURCE;
 		foreach ($service['rpcs'] as $rpcName => $rpc) {
-			$returnsType = Registry::getType($rpc['returns']);
-			$returns = ($returnsType['package'] === $service['package'] ? '' : "{$returnsType['package']}.") . $returnsType['name'];
+			if (empty($rpc['type'])) {
+				$type = 'null';
+				$arg = '';
+				$params = 'null';
+			} else {
+				$typeType = Registry::getType($rpc['type']);
+				if ($typeType['type'] === Registry::PRIMITIVE) {
+					$_type = $this->getType($typeType['name']);
+					$type = "'{$_type['type']}'";
+				} elseif ($typeType['type'] === Registry::ENUM) {
+					$type = "'number'";
+				} else {
+					$type = ($typeType['package'] === $service['package'] ? '' : (empty($typeType['package']) ? '' : "{$typeType['package']}.")) . $typeType['name'];
+				}
+				$arg = 'params';
+				$params = 'params';
+			}
+			if (empty($rpc['returns'])) {
+				$returns = 'null';
+			} else {
+				$returnsType = Registry::getType($rpc['returns']);
+				if ($returnsType['type'] === Registry::PRIMITIVE) {
+					$_type = $this->getType($returnsType['name']);
+					$returns = "'{$_type['type']}'";
+				} elseif ($returnsType['type'] === Registry::ENUM) {
+					$returns = "'number'";
+				} else {
+					$returns = ($returnsType['package'] === $service['package'] ? '' : (empty($returnsType['package']) ? '' : "{$returnsType['package']}.")) . $returnsType['name'];
+				}
+			}
 			$source .= <<<SOURCE
-		this.{$rpcName} = function(params) {
-			return this.addRequest('$rpcName', params, {$returns});
+		this.{$rpcName} = function({$arg}) {
+			return this.addRequest('$rpcName', {$params}, {$type}, {$returns});
 		};
 
 
