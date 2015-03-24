@@ -110,17 +110,59 @@ abstract class ServiceClient {
 		return $response;
 	}
 
-	protected function invoke($method, $params) {
+	protected function invoke($method, $params, $paramsTypeName, $resultTypeName) {
+		if (empty($paramsTypeName)) {
+			$_params = NULL;
+		} elseif ($paramsTypeName === 'float') {
+			$_params = (float) $params;
+		} elseif ($paramsTypeName === 'int') {
+			$_params = (int) $params;
+		} elseif ($paramsTypeName === 'bool') {
+			$_params = (bool) $params;
+		} elseif ($paramsTypeName === 'string') {
+			$_params = (string) $params;
+		} else {
+			if (empty($params)) {
+				throw new InvalidParams();
+			}
+			if (!$params->isInitialized()) {
+				throw new InvalidParams();
+			}
+			$_params = $params->toStdClass();
+		}
 		$request = new Request();
 		$request->setMethod($method);
-		$request->setParams($params);
+		$request->setParams($_params);
 		$request->setId($this->getId());
 		$response = Response::fromStdClass($this->send($request->toStdClass()));
 		if ($response->hasError()) {
 			$error = $response->getError();
 			throw new \Exception($error->getMessage(), $error->getCode(), NULL);
 		}
-		return $response->getResult();
+		$result = $response->getResult();
+		if (empty($resultTypeName)) {
+			return NULL;
+		}
+		if ($resultTypeName === 'float') {
+			return (float) $result;
+		}
+		if ($resultTypeName === 'int') {
+			return (int) $result;
+		}
+		if ($resultTypeName === 'bool') {
+			return (bool) $result;
+		}
+		if ($resultTypeName === 'string') {
+			return (string) $result;
+		}
+		if (empty($result)) {
+			throw new InvalidProtocolBufferException();
+		}
+		$_result = $resultTypeName::fromStdClass($result);
+		if (!$_result->isInitialized()) {
+			throw new InvalidProtocolBufferException();
+		}
+		return $_result;
 	}
 
 }
@@ -155,10 +197,29 @@ class ServiceClient_Batch {
 		return $this->serviceClient;
 	}
 
-	protected function addRequest($method, $params, $resultTypeName) {
+	protected function addRequest($method, $params, $paramsTypeName, $resultTypeName) {
+		if (empty($paramsTypeName)) {
+			$_params = NULL;
+		} elseif ($paramsTypeName === 'float') {
+			$_params = (float) $params;
+		} elseif ($paramsTypeName === 'int') {
+			$_params = (int) $params;
+		} elseif ($paramsTypeName === 'bool') {
+			$_params = (bool) $params;
+		} elseif ($paramsTypeName === 'string') {
+			$_params = (string) $params;
+		} else {
+			if (empty($params)) {
+				throw new InvalidParams();
+			}
+			if (!$params->isInitialized()) {
+				throw new InvalidParams();
+			}
+			$_params = $params->toStdClass();
+		}
 		$request = new Request();
 		$request->setMethod($method);
-		$request->setParams($params);
+		$request->setParams($_params);
 		$request->setId($this->serviceClient->getId());
 		$this->request[$this->serviceClient->getLastId()] = array(
 			'request' => $request,
@@ -305,59 +366,52 @@ class {$service['service']}Client extends \JSONRPC\ServiceClient {
 SOURCE;
 		if (!empty($service['rpcs'])) {
 			foreach ($service['rpcs'] as $rpcName => $rpc) {
-				$check = '';
 				if (empty($rpc['type'])) {
 					$arg = '';
 					$params = 'NULL';
+					$type = 'NULL';
 				} else {
 					$typeType = Registry::getType($rpc['type']);
 					if ($typeType['type'] === Registry::PRIMITIVE) {
-						$type = $this->getType($typeType['name']);
-						$arg = "\$params";
-						$params = "({$type['type']}) \$params";
+						$_type = $this->getType($typeType['name']);
+						$arg = '$params';
+						$params = '$params';
+						$type = $_type['type'];
 					} elseif ($typeType['type'] === Registry::ENUM) {
-						$arg = "\$params";
-						$params = "(int) \$params";
+						$arg = '$params';
+						$params = '$params';
+						$type = 'int';
 					} else {
 						$type = str_replace('.', '_', $typeType['name']);
 						if ($service['package'] !== $typeType['package']) {
 							$type = (empty($typeType['package']) ? '' : '\\' . $this->getNamespace($typeType['package'])) . '\\' . $type;
 						}
-						$check = <<<SOURCE
-
-		if (!\$params->isInitialized()) {
-			throw new UninitializedMessageException();
-		}
-SOURCE;
 						$arg = "{$type} \$params";
-						$params = '$params->toStdClass()';
+						$params = '$params';
 					}
+					$type = "'{$type}'";
 				}
 				if (empty($rpc['returns'])) {
-					$returnStart = '';
-					$returnEnd = ";\n\t\treturn NULL;";
+					$returns = 'NULL';
 				} else {
 					$returnsType = Registry::getType($rpc['returns']);
 					if ($returnsType['type'] === Registry::PRIMITIVE) {
-						$type = $this->getType($returnsType['name']);
-						$returnStart = "return ({$type['type']}) ";
-						$returnEnd = ';';
+						$_type = $this->getType($returnsType['name']);
+						$returns = $_type['type'];
 					} elseif ($returnsType['type'] === Registry::PRIMITIVE) {
-						$returnStart = 'return (int) ';
-						$returnEnd = ';';
+						$returns = 'int';
 					} else {
 						$returns = str_replace('.', '_', $returnsType['name']);
 						if ($service['package'] !== $returnsType['package']) {
 							$returns = (empty($returnsType['package']) ? '' : '\\' . $this->getNamespace($returnsType['package'])) . '\\' . $returns;
 						}
-						$returnStart = "return {$returns}::fromStdClass(";
-						$returnEnd = ');';
 					}
+					$returns = "'{$returns}'"; 
 				}
 				$source .= <<<SOURCE
 
-	public function {$rpcName}({$arg}) {{$check}
-		{$returnStart}\$this->invoke('{$rpcName}', {$params}){$returnEnd}
+	public function {$rpcName}({$arg}) {
+		return \$this->invoke('{$rpcName}', {$params}, {$type}, {$returns});
 	}
 
 SOURCE;
@@ -397,41 +451,38 @@ class {$service['service']}Client_Batch extends \JSONRPC\ServiceClient_Batch {
 SOURCE;
 		if (!empty($service['rpcs'])) {
 			foreach ($service['rpcs'] as $rpcName => $rpc) {
-				$check = '';
 				if (empty($rpc['type'])) {
 					$arg = '';
 					$params = 'NULL';
+					$type = 'NULL';
 				} else {
 					$typeType = Registry::getType($rpc['type']);
 					if ($typeType['type'] === Registry::PRIMITIVE) {
-						$type = $this->getType($typeType['name']);
-						$arg = "\$params";
-						$params = "({$type['type']}) \$params";
+						$_type = $this->getType($typeType['name']);
+						$arg = '$params';
+						$params = '$params';
+						$type = $_type['type'];
 					} elseif ($typeType['type'] === Registry::ENUM) {
-						$arg = "\$params";
-						$params = "(int) \$params";
+						$arg = '$params';
+						$params = '$params';
+						$type = 'int';
 					} else {
 						$type = str_replace('.', '_', $typeType['name']);
 						if ($service['package'] !== $typeType['package']) {
 							$type = (empty($typeType['package']) ? '' : '\\' . $this->getNamespace($typeType['package'])) . '\\' . $type;
 						}
-						$check = <<<SOURCE
-				
-		if (!\$params->isInitialized()) {
-			throw new UninitializedMessageException();
-		}
-SOURCE;
 						$arg = "{$type} \$params";
-						$params = '$params->toStdClass()';
+						$params = '$params';
 					}
+					$type = "'$type'";
 				}
 				if (empty($rpc['returns'])) {
 					$returns = "NULL";
 				} else {
 					$returnsType = Registry::getType($rpc['returns']);
 					if ($returnsType['type'] === Registry::PRIMITIVE) {
-						$type = $this->getType($returnsType['name']);
-						$returns = "{$type['type']}";
+						$_type = $this->getType($returnsType['name']);
+						$returns = "{$_type['type']}";
 						$returnEnd = ';';
 					} elseif ($returnsType['type'] === Registry::PRIMITIVE) {
 						$returns = "int";
@@ -442,8 +493,8 @@ SOURCE;
 				}
 				$source .= <<<SOURCE
 
-	public function {$rpcName}({$arg}) {{$check}
-		return \$this->addRequest('{$rpcName}', {$params}, {$returns});
+	public function {$rpcName}({$arg}) {
+		return \$this->addRequest('{$rpcName}', {$params}, {$type}, {$returns});
 	}
 
 SOURCE;
