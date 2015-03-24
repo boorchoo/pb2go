@@ -156,7 +156,7 @@ class PHPGenerator extends AbstractGenerator {
 		}
 		
 		$source = $this->generateInvalidProtocolBufferExceptionClassSource();
-		$filepath = "{$path}/classes/JSONRPC/InvalidProtolBufferException.php";
+		$filepath = "{$path}/classes/JSONRPC/InvalidProtocolBufferException.php";
 		$res = $this->output($filepath, $source);
 		if ($res) {
 			echo "{$filepath}\n";
@@ -388,7 +388,7 @@ class Response {
 
 	public static function fromException($e) {
 		$response = new Response();
-		$response->setError(new Response_Error($e->getCode(), $e->getMessage(), NULL));
+		$response->setError(Response_Error::fromException($e));
 		return $response;
 	}
 
@@ -422,16 +422,16 @@ class Response_Error {
 		return $this->code;
 	}
 
-	public function setCode($value) {
-		$this->code = $value;
+	public function setCode($code) {
+		$this->code = $code;
 	}
 
 	public function getMessage() {
 		return $this->message;
 	}
 
-	public function setMessage($value) {
-		$this->message = $value;
+	public function setMessage($message) {
+		$this->message = $message;
 	}
 
 	public function hasData() {
@@ -442,40 +442,37 @@ class Response_Error {
 		return $this->data;
 	}
 
-	public function setData($value) {
-		$this->data = $value;
+	public function setData($data) {
+		$this->data = $data;
 	}
 
 	public function toStdClass() {
-		$value = new \stdClass();
-		$value->code = $this->getCode();
-		$value->message = $this->getMessage();
+		$object = new \stdClass();
+		$object->code = $this->getCode();
+		$object->message = $this->getMessage();
 		if ($this->hasData()) {
-			$value->data = $this->getData();
-		}
-		return $value;
-	}
-
-	public function serialize() {
-		return json_encode($this->toStdClass());
-	}
-
-	public static function fromStdClass($value) {
-		$object = new Response_Error();
-		if (isset($value->code)) {
-			$object->setCode($value->code);
-		}
-		if (isset($value->message)) {
-			$object->setMessage($value->message);
-		}
-		if (isset($value->data)) {
-			$object->setData($value->data);
+			$object->data = $this->getData();
 		}
 		return $object;
 	}
 
-	public static function parse($value) {
-		return self::fromStdClass(json_decode($value));
+	public static function fromStdClass($object) {
+		$error = new Response_Error();
+		if (isset($object->code)) {
+			$error->setCode($object->code);
+		}
+		if (isset($object->message)) {
+			$error->setMessage($object->message);
+		}
+		if (isset($object->data)) {
+			$error->setData($object->data);
+		}
+		return $error;
+	}
+
+	public static function fromException($e) {
+		$error = new Response_Error($e->getCode(), $e->getMessage(), NULL);
+		return $error;
 	}
 
 }
@@ -962,10 +959,6 @@ SOURCE;
 		return \$value;
 	}
 
-	public function serialize() {
-		return json_encode(\$this->toStdClass());
-	}
-
 	public static function fromStdClass(\$value) {
 		\$object = new {$class}();
 SOURCE;
@@ -1062,10 +1055,6 @@ SOURCE;
 		$source .= <<<SOURCE
 
 		return \$object;
-	}
-
-	public static function parse(\$value) {
-		return self::fromStdClass(json_decode(\$value));
 	}
 
 }

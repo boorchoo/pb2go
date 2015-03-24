@@ -112,13 +112,71 @@ abstract class Service {
 		$this->authenticationClassName = $authenticationClassName;
 	}
 
-	public function registerMethod($methodName, $methodClassName, $requestClassName, $responseClassName) {
+	public function registerMethod($methodName, $methodClassName, $paramsTypeName, $resultTypeName) {
 		$this->methods[$methodName] = array(
 			'methodClassName' => $methodClassName,
-			'requestClassName' => $requestClassName,
-			'responseClassName' => $responseClassName,
+			'paramsTypeName' => $paramsTypeName,
+			'resultTypeName' => $resultTypeName,
 		);
-		return TRUE;
+	}
+
+	protected function invoke($config, $client, $methodName, $_params = NULL) {
+		if (!array_key_exists($methodName, $this->methods)) {
+			throw new MethodNotFound();
+		}
+		$paramsTypeName = $this->methods[$methodName]['paramsTypeName'];
+		if (empty($paramsTypeName)) {
+			if ($_params !== NULL) {
+				throw new InvalidParams();
+			}
+			$params = NULL;
+		} elseif ($paramsTypeName === 'float') {
+			$params = (float) $_params;
+		} elseif ($paramsTypeName === 'int') {
+			$params = (int) $_params;
+		} elseif ($paramsTypeName === 'bool') {
+			$params = (bool) $_params;
+		} elseif ($paramsTypeName === 'string') {
+			$params = (string) $_params;
+		} else {
+			if (empty($_params)) {
+				throw new InvalidParams();
+			}
+			$params = $paramsTypeName::fromStdClass($_params);
+			if (!$params->isInitialized()) {
+				throw new InvalidParams();
+			}
+		}
+		$methodClassName = $this->methods[$methodName]['methodClassName'];
+		$method = new $methodClassName($config, $client);
+		if (!$method->authorize($params)) {
+			throw new InternalError(new \Exception("Not authorized"));
+		}
+		$_result = $method->invoke($params);
+		$resultTypeName = $this->methods[$methodName]['resultTypeName'];
+		if (empty($resultTypeName)) {
+			if ($_result !== NULL) {
+				throw new InvalidParams();
+			}
+			$result = NULL;
+		} elseif ($resultTypeName === 'float') {
+			$result = (float) $_result;
+		} elseif ($resultTypeName === 'int') {
+			$result = (int) $_result;
+		} elseif ($resultTypeName === 'bool') {
+			$result = (bool) $_result;
+		} elseif ($resultTypeName === 'string') {
+			$result = (string) $_result;
+		} else {
+			if (empty($_result)) {
+				throw new InvalidParams();
+			}
+			if (!$_result->isInitialized()) {
+				throw new InvalidParams();
+			}
+			$result = $_result->toStdClass();
+		}
+		return $result;
 	}
 
 	public function run() {
@@ -143,21 +201,11 @@ abstract class Service {
 					throw new InvalidRequest();
 				}
 				$responses = array();
-				foreach ($input as $value) {
+				foreach ($input as $object) {
 					try {
-						$request = Request::fromStdClass($value);
-						if (!array_key_exists($request->getMethod(), $this->methods)) {
-							throw new MethodNotFound();
-						}
-						$requestClassName = $this->methods[$request->getMethod()]['requestClassName'];
-						$params = $requestClassName::fromStdClass($request->getParams());
-						$methodClassName = $this->methods[$request->getMethod()]['methodClassName'];
-						$method = new $methodClassName($config, $client);
-						if (!$method->authorize($params)) {
-							throw new InternalError(new \Exception("Not authorized"));
-						}
+						$request = Request::fromStdClass($object);
 						$response = new Response();
-						$response->setResult($method->invoke($params)->toStdClass());
+						$response->setResult($this->invoke($config, $client, $request->getMethod(), $request->getParams()));
 					} catch (\Exception $e) {
 						$response = Response::fromException($e);
 					}
@@ -181,18 +229,8 @@ abstract class Service {
 			} else {
 				try {
 					$request = Request::fromStdClass($input);
-					if (!array_key_exists($request->getMethod(), $this->methods)) {
-						throw new MethodNotFound();
-					}
-					$requestClassName = $this->methods[$request->getMethod()]['requestClassName'];
-					$params = $requestClassName::fromStdClass($request->getParams());
-					$methodClassName = $this->methods[$request->getMethod()]['methodClassName'];
-					$method = new $methodClassName($config, $client);
-					if (!$method->authorize($params)) {
-						throw new InternalError(new \Exception("Not authorized"));
-					}
 					$response = new Response();
-					$response->setResult($method->invoke($params)->toStdClass());
+					$response->setResult($this->invoke($config, $client, $request->getMethod(), $request->getParams()));
 				} catch (\Exception $e) {
 					$response = Response::fromException($e);
 				}
@@ -246,9 +284,9 @@ abstract class Method {
 		$this->client = $client;
 	}
 
-	public abstract function authorize($params = NULL);
+	public abstract function authorize($params);
 
-	public abstract function invoke($params = NULL);
+	public abstract function invoke($params);
 
 }
 
@@ -467,22 +505,19 @@ SOURCE;
 			if ($returnsType['type'] === Registry::PRIMITIVE) {
 				$type = $this->getType($returnsType['name']);
 				$result = $type['default'];
-				$return = "({$type['type']}) \$result";
 			} elseif ($returnsType['type'] === Registry::ENUM) {
 				$result = 'NULL';
-				$return = "(int) \$result";
 			} else {
 				$returns = str_replace('.', '_', $returnsType['name']);
 				if ($service['package'] !== $returnsType['package']) {
 					$returns = (empty($returnsType['package']) ? '' : '\\' . $this->getNamespace($returnsType['package'])) . '\\' . $returns;
 				}
 				$result = "new {$returns}()";
-				$return = "\$result";
 			}
 			$invoke = <<<SOURCE
 
 		\$result = {$result};
-		return {$return};
+		return \$result;
 SOURCE;
 		}
 		$source = <<<SOURCE
@@ -504,11 +539,11 @@ class {$service['service']}_{$rpcName} extends \JSONRPC\Method {
 		parent::__construct(\$config, \$client);
 	}
 
-	public function authorize({$arg}) {
+	public function authorize(\$params) {
 		return TRUE;
 	}
 
-	public function invoke({$arg}) {{$invoke}
+	public function invoke(\$params) {{$invoke}
 	}
 
 }

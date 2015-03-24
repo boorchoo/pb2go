@@ -187,6 +187,40 @@ class ServiceClient_Batch {
 		return $this->result;
 	}
 
+	protected function setResult($id, $result) {
+		$resultTypeName = $this->request[$id]['resultTypeName'];
+		if (empty($resultTypeName)) {
+			$this->result[$id] = NULL;
+			return;
+		}
+		if ($resultTypeName === 'float') {
+			$this->result[$id] = (float) $result;
+			return;
+		}
+		if ($resultTypeName === 'int') {
+			$this->result[$id] = (int) $result;
+			return;
+		}
+		if ($resultTypeName === 'bool') {
+			$this->result[$id] = (bool) $result;
+			return;
+		}
+		if ($resultTypeName === 'string') {
+			$this->result[$id] = (string) $result;
+			return;
+		}
+		if (empty($result)) {
+			$this->setError($id, Response_Error::fromException(new InvalidProtocolBufferException()));
+			return;
+		}
+		$_result = $resultTypeName::fromStdClass($result);
+		if (!$_result->isInitialized()) {
+			$this->setError($id, Response_Error::fromException(new InvalidProtocolBufferException()));
+			return;
+		}
+		$this->result[$id] = $_result;
+	}
+
 	protected function clearResult() {
 		$this->result = array();
 	}
@@ -207,6 +241,10 @@ class ServiceClient_Batch {
 		return $this->error;
 	}
 
+	protected function setError($id, $error) {
+		$this->error[$id] = $error;
+	}
+
 	protected function clearError() {
 		$this->error = array();
 	}
@@ -222,31 +260,10 @@ class ServiceClient_Batch {
 		foreach ($objects as $object) {
 			$response = Response::fromStdClass($object);
 			if ($response->hasError()) {
-				$this->error[$response->getId()] = $response->getError();
+				$this->setError($response->getId(), $response->getError());
 				continue;
 			}
-			$resultTypeName = $this->request[$response->getId()]['resultTypeName'];
-			if (empty($resultTypeName)) {
-				$this->result[$response->getId()] = NULL;
-				continue;
-			}
-			if ($resultTypeName === 'float') {
-				$this->result[$response->getId()] = (float) $response->getResult();
-				continue;
-			}
-			if ($resultTypeName === 'int') {
-				$this->result[$response->getId()] = (int) $response->getResult();
-				continue;
-			}
-			if ($resultTypeName === 'bool') {
-				$this->result[$response->getId()] = (bool) $response->getResult();
-				continue;
-			}
-			if ($resultTypeName === 'string') {
-				$this->result[$response->getId()] = (string) $response->getResult();
-				continue;
-			}
-			$this->result[$response->getId()] = $resultTypeName::fromStdClass($response->getResult());
+			$this->setResult($response->getId(), $response->getResult());
 		}
 		$this->clearRequest();
 		return $this;
