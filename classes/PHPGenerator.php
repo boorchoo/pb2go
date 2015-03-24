@@ -2,6 +2,69 @@
 
 class PHPGenerator extends AbstractGenerator {
 	
+	public static $type = array(
+		'double' => array(
+			'type' => 'float',
+			'default' => '0.0',
+		),
+		'float' => array(
+			'type' => 'float',
+			'default' => '0.0',
+		),
+		'int32' => array(
+			'type' => 'int',
+			'default' => '0',
+		),
+		'int64' => array(
+			'type' => 'int',
+			'default' => '0',
+		),
+		'uint32' => array(
+			'type' => 'int',
+			'default' => '0',
+		),
+		'uint64' => array(
+			'type' => 'int',
+			'default' => '0',
+		),
+		'sint32' => array(
+			'type' => 'int',
+			'default' => '0',
+		),
+		'sint64' => array(
+			'type' => 'int',
+			'default' => '0',
+		),
+		'fixed32' => array(
+			'type' => 'int',
+			'default' => '0',
+		),
+		'fixed64' => array(
+			'type' => 'int',
+			'default' => '0',
+		),
+		'sfixed32' => array(
+			'type' => 'int',
+			'default' => '0',
+		),
+		'sfixed64' => array(
+			'type' => 'int',
+			'default' => '0',
+		),
+		'bool' => array(
+			'type' => 'bool',
+			'default' => 'FALSE',
+		),
+		'string' => array(
+			'type' => 'string',
+			'default' => "''",
+		),
+		'bytes' => array(
+			'type' => 'string',
+			'default' => "''",
+		),
+	);
+	
 	public function __construct($fileName, $proto) {
 		parent::__construct($fileName, $proto);
 	}
@@ -20,6 +83,10 @@ class PHPGenerator extends AbstractGenerator {
 			$type_part = $this->toCamelCase($type_part);
 		}
 		return implode('_', $type_parts);
+	}
+	
+	public function getType($type) {
+		return isset(self::$type[$type]) ? self::$type[$type] : NULL;
 	}
 	
 	public function generate($path) {

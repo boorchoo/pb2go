@@ -552,8 +552,12 @@ class Parser {
 		if (empty($token)) {
 			throw new Exception("[{$this->getFile()}] Unexpected EOF");
 		}
-		$type = $this->getType($token->getText());
-		$this->getNextToken(Lexer::CLOSING_PARENTHESIS);
+		if ($token->getType() === Lexer::CLOSING_PARENTHESIS) {
+			$type = NULL;
+		} else {
+			$type = $this->getType($token->getText());
+			$this->getNextToken(Lexer::CLOSING_PARENTHESIS);
+		}
 		$token = $this->getNextToken(Lexer::KEYWORD);
 		if ($token->getText() !== 'returns') {
 			throw new Exception("[{$this->getFile()} : {$token->getLine()} : {$token->getColumn()}] Unexpected {$token->getType()} => {$token->getText()}");
@@ -563,8 +567,12 @@ class Parser {
 		if (empty($token)) {
 			throw new Exception("[{$this->getFile()}] Unexpected EOF");
 		}
-		$returns = $this->getType($token->getText());
-		$this->getNextToken(Lexer::CLOSING_PARENTHESIS);
+		if ($token->getType() === Lexer::CLOSING_PARENTHESIS) {
+			$returns = NULL;
+		} else {
+			$returns = $this->getType($token->getText());
+			$this->getNextToken(Lexer::CLOSING_PARENTHESIS);
+		}
 		$token = $this->getNextToken();
 		if (empty($token)) {
 			throw new Exception("[{$this->getFile()}] Unexpected EOF");
