@@ -44,6 +44,27 @@ class PHPServiceGenerator extends PHPGenerator {
 			echo "{$filepath}\n";
 		}
 		
+		$source = $this->generateServerErrorClassSource();
+		$filepath = "{$path}/classes/JSONRPC/ServerError.php";
+		$res = $this->output($filepath, $source);
+		if ($res) {
+			echo "{$filepath}\n";
+		}
+		
+		$source = $this->generateInvalidRequestErrorClassSource();
+		$filepath = "{$path}/classes/JSONRPC/InvalidRequestError.php";
+		$res = $this->output($filepath, $source);
+		if ($res) {
+			echo "{$filepath}\n";
+		}
+		
+		$source = $this->generateMethodNotFoundErrorClassSource();
+		$filepath = "{$path}/classes/JSONRPC/MethodNotFoundError.php";
+		$res = $this->output($filepath, $source);
+		if ($res) {
+			echo "{$filepath}\n";
+		}
+		
 		foreach ($this->proto['services'] as $service) {
 			$source = $this->generateClassSource($service);
 			$filepath = "{$path}/classes/" . (empty($service['package']) ? '' : (str_replace('\\', '/', $this->getNamespace($service['package'])) . '/')) . "{$service['service']}.php";
@@ -157,7 +178,7 @@ abstract class Service {
 		} catch (Error $e) {
 			throw $e;
 		} catch (\Exception $e) {
-			throw new InternalError($e);
+			throw new ServerError($e);
 		}
 		$resultTypeName = $this->methods[$methodName]['resultTypeName'];
 		if (empty($resultTypeName)) {
@@ -200,7 +221,7 @@ abstract class Service {
 			}
 			$input = json_decode(file_get_contents("php://input"));
 			if ($input === NULL) {
-				throw new ParseError();
+				throw new ParseError(new Error(json_last_error_msg(), json_last_error()));
 			}
 			if (is_array($input)) {
 				if (empty($input)) {
@@ -474,6 +495,75 @@ class Client extends Values {
 
 	public function isAuthenticated() {
 		return $this->authenticated;
+	}
+
+}
+
+SOURCE;
+		return $source;
+	}
+
+	public function generateServerErrorClassSource() {
+		$source = <<<'SOURCE'
+<?php
+
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
+
+class ServerError extends Error {
+
+	const MESSAGE = 'Server error';
+	const CODE = -32000;
+
+	public function __construct($data = NULL) {
+		parent::__construct(self::MESSAGE, self::CODE, $data);
+	}
+
+}
+
+SOURCE;
+		return $source;
+	}
+	
+	public function generateInvalidRequestErrorClassSource() {
+		$source = <<<'SOURCE'
+<?php
+
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
+
+class InvalidRequestError extends Error {
+
+	const MESSAGE = 'Invalid request';
+	const CODE = -32600;
+
+	public function __construct($data = NULL) {
+		parent::__construct(self::MESSAGE, self::CODE, $data);
+	}
+
+}
+
+SOURCE;
+		return $source;
+	}
+
+	public function generateMethodNotFoundErrorClassSource() {
+		$source = <<<'SOURCE'
+<?php
+
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
+
+class MethodNotFoundError extends Error {
+
+	const MESSAGE = 'Method not found';
+	const CODE = -32601;
+
+	public function __construct($data = NULL) {
+		parent::__construct(self::MESSAGE, self::CODE, $data);
 	}
 
 }

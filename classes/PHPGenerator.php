@@ -119,21 +119,7 @@ class PHPGenerator extends AbstractGenerator {
 		if ($res) {
 			echo "{$filepath}\n";
 		}
-		
-		$source = $this->generateInvalidRequestErrorClassSource();
-		$filepath = "{$path}/classes/JSONRPC/InvalidRequestError.php";
-		$res = $this->output($filepath, $source);
-		if ($res) {
-			echo "{$filepath}\n";
-		}
-		
-		$source = $this->generateMethodNotFoundErrorClassSource();
-		$filepath = "{$path}/classes/JSONRPC/MethodNotFoundError.php";
-		$res = $this->output($filepath, $source);
-		if ($res) {
-			echo "{$filepath}\n";
-		}
-		
+				
 		$source = $this->generateInvalidParamsErrorClassSource();
 		$filepath = "{$path}/classes/JSONRPC/InvalidParamsError.php";
 		$res = $this->output($filepath, $source);
@@ -143,13 +129,6 @@ class PHPGenerator extends AbstractGenerator {
 		
 		$source = $this->generateInternalErrorClassSource();
 		$filepath = "{$path}/classes/JSONRPC/InternalError.php";
-		$res = $this->output($filepath, $source);
-		if ($res) {
-			echo "{$filepath}\n";
-		}
-		
-		$source = $this->generateServerErrorClassSource();
-		$filepath = "{$path}/classes/JSONRPC/ServerError.php";
 		$res = $this->output($filepath, $source);
 		if ($res) {
 			echo "{$filepath}\n";
@@ -482,52 +461,6 @@ SOURCE;
 		return $source;
 	}
 
-	public function generateInvalidRequestErrorClassSource() {
-		$source = <<<'SOURCE'
-<?php
-
-/*** DO NOT MANUALLY EDIT THIS FILE ***/
-
-namespace JSONRPC;
-
-class InvalidRequestError extends Error {
-				
-	const MESSAGE = 'Invalid request';
-	const CODE = -32600;
-
-	public function __construct($data = NULL) {
-		parent::__construct(self::MESSAGE, self::CODE, $data);
-	}
-
-}
-
-SOURCE;
-		return $source;
-	}
-	
-	public function generateMethodNotFoundErrorClassSource() {
-		$source = <<<'SOURCE'
-<?php
-
-/*** DO NOT MANUALLY EDIT THIS FILE ***/
-
-namespace JSONRPC;
-
-class MethodNotFoundError extends Error {
-
-	const MESSAGE = 'Method not found';
-	const CODE = -32601;
-
-	public function __construct($data = NULL) {
-		parent::__construct(self::MESSAGE, self::CODE, $data);
-	}
-
-}
-
-SOURCE;
-		return $source;
-	}
-
 	public function generateInvalidParamsErrorClassSource() {
 		$source = <<<'SOURCE'
 <?php
@@ -548,7 +481,6 @@ class InvalidParamsError extends Error {
 }
 
 SOURCE;
-
 		return $source;
 	}
 
@@ -564,29 +496,6 @@ class InternalError extends Error {
 
 	const MESSAGE = 'Internal error';
 	const CODE = -32603;
-
-	public function __construct($data = NULL) {
-		parent::__construct(self::MESSAGE, self::CODE, $data);
-	}
-
-}
-
-SOURCE;
-		return $source;
-	}
-
-	public function generateServerErrorClassSource() {
-		$source = <<<'SOURCE'
-<?php
-
-/*** DO NOT MANUALLY EDIT THIS FILE ***/
-
-namespace JSONRPC;
-
-class ServerError extends Error {
-
-	const MESSAGE = 'Server error';
-	const CODE = -32000;
 
 	public function __construct($data = NULL) {
 		parent::__construct(self::MESSAGE, self::CODE, $data);

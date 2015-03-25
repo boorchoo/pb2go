@@ -340,7 +340,7 @@ var JSONRPC = (function($this) {
 			response.setResult(object.result);
 		}
 		if (typeof object.error !== 'undefined') {
-			response.setError(Response.Error.fromObject(object.error));
+			response.setError(Error.fromObject(object.error));
 		}
 		if (typeof object.id !== 'undefined') {
 			response.setId(object.id);
@@ -350,11 +350,11 @@ var JSONRPC = (function($this) {
 
 	$this.Response = Response;
 
-	Response.Error = function() {
+	var Error = function(_message, _code, _data) {
 
-		var code = null;
-		var message = null;
-		var data = null;
+		var code = typeof _code === 'undefined' ? null : _code;
+		var message = typeof _message === 'undefined' ? null : _message;
+		var data = typeof _data === 'undefined' ? null : _data;
 
 		this.getCode = function() {
 			return code;
@@ -396,8 +396,8 @@ var JSONRPC = (function($this) {
 
 	};
 
-	Response.Error.fromObject = function(object) {
-		var error = new Response.Error();
+	Error.fromObject = function(object) {
+		var error = new Error();
 		if (typeof object.code !== 'undefined') {
 			error.setCode(object.code);
 		}
@@ -409,6 +409,54 @@ var JSONRPC = (function($this) {
 		}
 		return error;
 	};
+
+	$this.Error = Error;
+
+	var ParseError = function(_data) {
+
+		this.base = Error;
+		this.base('Parse error', -32700, _data);
+
+	};
+	ParseError.prototype = new Error;
+
+	$this.ParseError = ParseError;
+
+	var InvalidParamsError = function(_data) {
+
+		this.base = Error;
+		this.base('Invalid params', -32602, _data);
+
+	};
+	InvalidParamsError.prototype = new Error;
+
+	$this.InvalidParamsError = InvalidParamsError;
+
+	var InvalidResultError = function(_data) {
+
+		this.base = Error;
+		this.base('Invalid result', -32001, _data);
+
+	};
+	InvalidResultError.prototype = new Error;
+
+	$this.InvalidResultError = InvalidResultError;
+
+	var defaultErrorHandler = function(error) {
+		console.log('******** [ERROR] (' + error.getCode() + ') ' + error.getMessage());
+		if (error.hasData()) {
+			var data = error.getData();
+			if (typeof data === 'object') {
+				for (var index in data) {
+					console.log('******** ' + index + ': ' + data[index]);
+				}
+			} else {
+				console.log('******** ' + data);
+			}
+		}
+	};
+
+	$this.defaultErrorHandler = defaultErrorHandler;
 
 	var ServiceClient = function(_url) {
 
@@ -450,7 +498,7 @@ var JSONRPC = (function($this) {
 			return id;
 		};
 
-		this.send = function(request, handler) {
+		this.send = function(request, responseHandler, errorHandler) {
 			var xhr = new XMLHttpRequest();
 			xhr.open('POST', url, true);
 			for (var header in requestHeaders) {
@@ -459,7 +507,16 @@ var JSONRPC = (function($this) {
 			xhr.onreadystatechange = function () {
 				if (xhr.readyState === 4) {
 					if (xhr.status === 200) {
-						handler(JSON.parse(xhr.responseText));
+						var response = null;
+						try {
+							if (xhr.responseText !== '') {
+								response = JSON.parse(xhr.responseText);
+							}
+						} catch (error) {
+							errorHandler(new ParseError(error.message));
+							return;
+						}
+						responseHandler(response);
 					}
 				}
 			};
@@ -467,33 +524,46 @@ var JSONRPC = (function($this) {
 		}
 
 		this.invoke = function(method, params, paramsType, resultType, resultHandler, errorHandler) {
+			if (typeof resultHandler === 'undefined') {
+				resultHandler = function(result) {
+				};
+			}
+			if (typeof errorHandler === 'undefined') {
+				errorHandler = defaultErrorHandler;
+			}
 			var _params;
 			if (paramsType === null) {
 				if (params !== null) {
-					throw 'Invalid params';
+					errorHandler(new InvalidParamsError());
+					return;
 				}
 				_params = null;
 			} else if (paramsType === 'number') {
 				if (typeof params !== 'number') {
-					throw 'Invalid params';
+					errorHandler(new InvalidParamsError());
+					return;
 				}
 				_params = params;
 			} else if (paramsType === 'boolean') {
 				if (typeof params !== 'boolean') {
-					throw 'Invalid params';
+					errorHandler(new InvalidParamsError());
+					return;
 				}
 				_params = params;
 			} else if (paramsType === 'string') {
 				if (typeof params !== 'string') {
-					throw 'Invalid params';
+					errorHandler(new InvalidParamsError());
+					return;
 				}
 				_params = params;
 			} else {
 				if (typeof params === 'undefined' || params === null) {
-					throw 'Invalid params';
+					errorHandler(new InvalidParamsError());
+					return;
 				}
 				if (!params.isInitialized()) {
-					throw 'Invalid params';
+					errorHandler(new InvalidParamsError());
+					return;
 				}
 				_params = params.toObject();
 			}
@@ -502,48 +572,57 @@ var JSONRPC = (function($this) {
 			request.setParams(_params);
 			request.setId(this.getId());
 			this.send(request.toObject(), function(object) {
+				if (object === null) {
+					return;
+				}
+				if (typeof object !== 'object') {
+					errorHandler(new InvalidResultError());
+					return;
+				}
 				var response = Response.fromObject(object);
 				if (response.hasError()) {
-					if (typeof errorHandler !== 'undefined') {
-						errorHandler(response.getError());
+					errorHandler(response.getError());
+					return;
+				}
+				var result = response.getResult();
+				var _result;
+				if (resultType === null) {
+					if (result !== null) {
+						errorHandler(new InvalidResultError());
+						return;
 					}
+					_result = null;
+				} else if (resultType === 'number') {
+					if (typeof result !== 'number') {
+						errorHandler(new InvalidResultError());
+						return;
+					}
+					_result = result;
+				} else if (resultType === 'boolean') {
+					if (typeof result !== 'boolean') {
+						errorHandler(new InvalidResultError());
+						return;
+					}
+					_result = result;
+				} else if (resultType === 'string') {
+					if (typeof result !== 'string') {
+						errorHandler(new InvalidResultError());
+						return;
+					}
+					_result = result;
 				} else {
-					var result = response.getResult();
-					var _result;
-					if (resultType === null) {
-						if (result !== null) {
-							throw 'Invalid protocol buffer';
-						}
-						_result = null;
-					} else if (resultType === 'number') {
-						if (typeof result !== 'number') {
-							throw 'Invalid protocol buffer';
-						}
-						_result = result;
-					} else if (resultType === 'boolean') {
-						if (typeof result !== 'boolean') {
-							throw 'Invalid protocol buffer';
-						}
-						_result = result;
-					} else if (resultType === 'string') {
-						if (typeof result !== 'string') {
-							throw 'Invalid protocol buffer';
-						}
-						_result = result;
-					} else {
-						if (typeof result === 'undefined' || result === null) {
-							throw 'Invalid protocol buffer';
-						}
-						_result = resultType.fromObject(result);
-						if (!_result.isInitialized()) {
-							throw 'Invalid protocol buffer';
-						}
+					if (typeof result === 'undefined' || result === null) {
+						errorHandler(new InvalidResultError());
+						return;
 					}
-					if (typeof resultHandler !== 'undefined') {
-						resultHandler(_result);
+					_result = resultType.fromObject(result);
+					if (!_result.isInitialized()) {
+						errorHandler(new InvalidResultError());
+						return;
 					}
 				}
-			});
+				resultHandler(_result);
+			}, errorHandler);
 		};
 
 	};
@@ -561,34 +640,43 @@ var JSONRPC = (function($this) {
 			return serviceClient;
 		};
 
-		this.addRequest = function(method, params, paramsType, resultType) {
+		this.addRequest = function(method, params, paramsType, resultType, errorHandler) {
+			if (typeof errorHandler === 'undefined') {
+				errorHandler = defaultErrorHandler;
+			}
 			var _params;
 			if (paramsType === null) {
 				if (params !== null) {
-					throw 'Invalid params';
+					errorHandler(new InvalidParamsError());
+					return;
 				}
 				_params = null;
 			} else if (paramsType === 'number') {
 				if (typeof params !== 'number') {
-					throw 'Invalid params';
+					errorHandler(new InvalidParamsError());
+					return;
 				}
 				_params = params;
 			} else if (paramsType === 'boolean') {
 				if (typeof params !== 'boolean') {
-					throw 'Invalid params';
+					errorHandler(new InvalidParamsError());
+					return;
 				}
 				_params = params;
 			} else if (paramsType === 'string') {
 				if (typeof params !== 'string') {
-					throw 'Invalid params';
+					errorHandler(new InvalidParamsError());
+					return;
 				}
 				_params = params;
 			} else {
 				if (typeof params === 'undefined' || params === null) {
-					throw 'Invalid params';
+					errorHandler(new InvalidParamsError());
+					return;
 				}
 				if (!params.isInitialized()) {
-					throw 'Invalid params';
+					errorHandler(new InvalidParamsError());
+					return;
 				}
 				_params = params.toObject();
 			}
@@ -627,27 +715,33 @@ var JSONRPC = (function($this) {
 			var resultType = request[id].resultType;
 			if (resultType === null) {
 				if (_result !== null) {
-					throw 'Invalid protocol buffer';
+					this.setError(new InvalidResultError());
+					return;
 				}
 			} else if (resultType === 'number') {
 				if (typeof _result !== 'number') {
-					throw 'Invalid protocol buffer';
+					this.setError(new InvalidResultError());
+					return;
 				}
 			} else if (resultType === 'boolean') {
 				if (typeof _result !== 'boolean') {
-					throw 'Invalid protocol buffer';
+					this.setError(new InvalidResultError());
+					return;
 				}
 			} else if (resultType === 'string') {
 				if (typeof _result !== 'string') {
-					throw 'Invalid protocol buffer';
+					this.setError(new InvalidResultError());
+					return;
 				}
 			} else {
 				if (typeof _result === 'undefined' || _result === null) {
-					throw 'Invalid protocol buffer';
+					this.setError(new InvalidResultError());
+					return;
 				}
 				_result = resultType.fromObject(_result);
 				if (!_result.isInitialized()) {
-					throw 'Invalid protocol buffer';
+					this.setError(new InvalidResultError());
+					return;
 				}
 			}
 			result[id] = _result;
@@ -681,7 +775,14 @@ var JSONRPC = (function($this) {
 			error = [];
 		};
 
-		this.send = function(handler) {
+		this.send = function(handler, errorHandler) {
+			if (typeof handler === 'undefined') {
+				handler = function(batch) {
+				};
+			}
+			if (typeof errorHandler === 'undefined') {
+				errorHandler = defaultErrorHandler;
+			}
 			var requests = [];
 			for (var index in request) {
 				requests.push(request[index].request.toObject());
@@ -700,7 +801,7 @@ var JSONRPC = (function($this) {
 				}
 				$this.clearRequest();
 				handler($this);
-			});
+			}, errorHandler);
 		};
 
 	};

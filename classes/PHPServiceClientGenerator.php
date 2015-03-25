@@ -114,13 +114,19 @@ abstract class ServiceClient {
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $requestHeaders);
 		$_response = curl_exec($ch);
 		if ($_response === FALSE) {
-			throw new ServiceClientError(new Error(curl_error($ch), curl_errno($ch)));
+			throw new ServiceClientError(new Error('cURL error: ' . curl_error($ch), curl_errno($ch)));
 		}
 		$info = curl_getinfo($ch);
 		if ($info['http_code'] !== 200) {
-			throw new ServiceClientError(new Error('HTTP error', $info['http_code']));
+			throw new ServiceClientError(new Error('HTTP status code error', $info['http_code']));
+		}
+		if (empty($_response)) {
+			return NULL;
 		}
 		$response = json_decode($_response);
+		if ($response === NULL) {
+			throw new ParseError(new Error(json_last_error_msg(), json_last_error()));
+		}
 		curl_close($ch);
 		return $response;
 	}
@@ -128,7 +134,7 @@ abstract class ServiceClient {
 	protected function invoke($method, $params, $paramsTypeName, $resultTypeName) {
 		if (empty($paramsTypeName)) {
 			if ($params !== NULL) {
-				throw new InvlaidParamsError();
+				throw new InvalidParamsError();
 			}
 			$_params = NULL;
 		} elseif ($paramsTypeName === 'float') {
@@ -152,7 +158,14 @@ abstract class ServiceClient {
 		$request->setMethod($method);
 		$request->setParams($_params);
 		$request->setId($this->getId());
-		$response = Response::fromStdClass($this->send($request->toStdClass()));
+		$object = $this->send($request->toStdClass());
+		if ($object === NULL) {
+			return NULL;
+		}
+		if (!is_object($object)) {
+			throw new InvalidResultError();
+		}
+		$response = Response::fromStdClass($object);
 		if ($response->hasError()) {
 			throw $response->getError();
 		}
@@ -345,7 +358,25 @@ class ServiceClient_Batch {
 		$objects = $this->serviceClient->send($requests);
 		$this->clearResult();
 		$this->clearError();
+		if ($objects === NULL) {
+			$this->clearRequest();
+			return;
+		}
+		if (!is_array($objects)) {
+			if (!is_object($objects)) {
+				throw new InvalidResultError();
+			}
+			$response = Response::fromStdClass($objects);
+			if ($response->hasError()) {
+				throw $response->getError();
+			}
+			throw new InvalidResultError();
+		}
 		foreach ($objects as $object) {
+			if (!is_object($object)) {
+				$this->setError($response->getId(), new InvalidResultError());
+				continue;
+			}
 			$response = Response::fromStdClass($object);
 			if ($response->hasError()) {
 				$this->setError($response->getId(), $response->getError());
@@ -354,7 +385,6 @@ class ServiceClient_Batch {
 			$this->setResult($response->getId(), $response->getResult());
 		}
 		$this->clearRequest();
-		return $this;
 	}
 
 }
