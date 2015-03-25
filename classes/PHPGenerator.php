@@ -106,8 +106,8 @@ class PHPGenerator extends AbstractGenerator {
 			echo "{$filepath}\n";
 		}
 		
-		$source = $this->generateResponse_ErrorClassSource();
-		$filepath = "{$path}/classes/JSONRPC/Response_Error.php";
+		$source = $this->generateErrorClassSource();
+		$filepath = "{$path}/classes/JSONRPC/Error.php";
 		$res = $this->output($filepath, $source);
 		if ($res) {
 			echo "{$filepath}\n";
@@ -120,22 +120,22 @@ class PHPGenerator extends AbstractGenerator {
 			echo "{$filepath}\n";
 		}
 		
-		$source = $this->generateInvalidRequestClassSource();
-		$filepath = "{$path}/classes/JSONRPC/InvalidRequest.php";
+		$source = $this->generateInvalidRequestErrorClassSource();
+		$filepath = "{$path}/classes/JSONRPC/InvalidRequestError.php";
 		$res = $this->output($filepath, $source);
 		if ($res) {
 			echo "{$filepath}\n";
 		}
 		
-		$source = $this->generateMethodNotFoundClassSource();
-		$filepath = "{$path}/classes/JSONRPC/MethodNotFound.php";
+		$source = $this->generateMethodNotFoundErrorClassSource();
+		$filepath = "{$path}/classes/JSONRPC/MethodNotFoundError.php";
 		$res = $this->output($filepath, $source);
 		if ($res) {
 			echo "{$filepath}\n";
 		}
 		
-		$source = $this->generateInvalidParamsClassSource();
-		$filepath = "{$path}/classes/JSONRPC/InvalidParams.php";
+		$source = $this->generateInvalidParamsErrorClassSource();
+		$filepath = "{$path}/classes/JSONRPC/InvalidParamsError.php";
 		$res = $this->output($filepath, $source);
 		if ($res) {
 			echo "{$filepath}\n";
@@ -155,15 +155,15 @@ class PHPGenerator extends AbstractGenerator {
 			echo "{$filepath}\n";
 		}
 		
-		$source = $this->generateInvalidProtocolBufferExceptionClassSource();
-		$filepath = "{$path}/classes/JSONRPC/InvalidProtocolBufferException.php";
+		$source = $this->generateInvalidResultErrorClassSource();
+		$filepath = "{$path}/classes/JSONRPC/InvalidResultError.php";
 		$res = $this->output($filepath, $source);
 		if ($res) {
 			echo "{$filepath}\n";
 		}
 		
-		$source = $this->generateUninitializedMessageExceptionClassSource();
-		$filepath = "{$path}/classes/JSONRPC/UninitializedMessageException.php";
+		$source = $this->generateUninitializedMessageErrorClassSource();
+		$filepath = "{$path}/classes/JSONRPC/UninitializedMessageError.php";
 		$res = $this->output($filepath, $source);
 		if ($res) {
 			echo "{$filepath}\n";
@@ -378,7 +378,7 @@ class Response {
 			$response->setResult($object->result);
 		}
 		if (isset($object->error)) {
-			$response->setError(Response_Error::fromStdClass($object->error));
+			$response->setError(Error::fromStdClass($object->error));
 		}
 		if (isset($object->id)) {
 			$response->setId($object->id);
@@ -388,7 +388,7 @@ class Response {
 
 	public static function fromException($e) {
 		$response = new Response();
-		$response->setError(Response_Error::fromException($e));
+		$response->setError(Error::fromException($e));
 		return $response;
 	}
 
@@ -398,7 +398,7 @@ SOURCE;
 		return $source;
 	}
 
-	public function generateResponse_ErrorClassSource() {
+	public function generateErrorClassSource() {
 		$source = <<<'SOURCE'
 <?php
 
@@ -406,32 +406,23 @@ SOURCE;
 
 namespace JSONRPC;
 
-class Response_Error {
+class Error extends \Exception {
 
-	protected $code = NULL;
-	protected $message = NULL;
 	protected $data = NULL;
 
-	public function __construct($code = NULL, $message = NULL, $data = NULL) {
-		$this->code = $code;
-		$this->message = $message;
-		$this->data = $data;
-	}
-
-	public function getCode() {
-		return $this->code;
-	}
-
-	public function setCode($code) {
-		$this->code = $code;
-	}
-
-	public function getMessage() {
-		return $this->message;
-	}
-
-	public function setMessage($message) {
-		$this->message = $message;
+	public function __construct($message = NULL, $code = NULL, $data = NULL) {
+		parent::__construct($message, $code, is_a($data, '\\Exception') ? $data : NULL);
+		if (is_a($data, '\\JSONRPC\\Error')) {
+			$this->data = $data->toStdClass();
+		} elseif (is_a($data, '\\Exception')) {
+			$this->data = new \stdClass();
+			$this->data->code = $data->getCode();
+			$this->data->message = $data->getMessage();
+			$this->data->file = $data->getFile();
+			$this->data->line = $data->getLine();	
+		} else {
+			$this->data = $data;
+		}
 	}
 
 	public function hasData() {
@@ -440,10 +431,6 @@ class Response_Error {
 
 	public function getData() {
 		return $this->data;
-	}
-
-	public function setData($data) {
-		$this->data = $data;
 	}
 
 	public function toStdClass() {
@@ -457,21 +444,12 @@ class Response_Error {
 	}
 
 	public static function fromStdClass($object) {
-		$error = new Response_Error();
-		if (isset($object->code)) {
-			$error->setCode($object->code);
-		}
-		if (isset($object->message)) {
-			$error->setMessage($object->message);
-		}
-		if (isset($object->data)) {
-			$error->setData($object->data);
-		}
+		$error = new Error(isset($object->message) ? $object->message : NULL, isset($object->code) ? $object->code : NULL, isset($object->data) ? $object->data : NULL);
 		return $error;
 	}
 
 	public static function fromException($e) {
-		$error = new Response_Error($e->getCode(), $e->getMessage(), NULL);
+		$error = new Error($e->getMessage(), $e->getCode(), is_a($e, '\\JSONRPC\\Error') ? $e->getData() : $e->getPrevious());
 		return $error;
 	}
 
@@ -489,10 +467,13 @@ SOURCE;
 
 namespace JSONRPC;
 
-class ParseError extends \Exception {
+class ParseError extends Error {
 
-	public function __construct(\Exception $previous = NULL) {
-		parent::__construct('Parse error', -32700, $previous);
+	const MESSAGE = 'Parse error';
+	const CODE = -32700;
+
+	public function __construct($data = NULL) {
+		parent::__construct(self::MESSAGE, self::CODE, $data);
 	}
 
 }
@@ -501,7 +482,7 @@ SOURCE;
 		return $source;
 	}
 
-	public function generateInvalidRequestClassSource() {
+	public function generateInvalidRequestErrorClassSource() {
 		$source = <<<'SOURCE'
 <?php
 
@@ -509,10 +490,36 @@ SOURCE;
 
 namespace JSONRPC;
 
-class InvalidRequest extends \Exception {
+class InvalidRequestError extends Error {
+				
+	const MESSAGE = 'Invalid request';
+	const CODE = -32600;
 
-	public function __construct(\Exception $previous = NULL) {
-		parent::__construct('Invalid Request', -32600, $previous);
+	public function __construct($data = NULL) {
+		parent::__construct(self::MESSAGE, self::CODE, $data);
+	}
+
+}
+
+SOURCE;
+		return $source;
+	}
+	
+	public function generateMethodNotFoundErrorClassSource() {
+		$source = <<<'SOURCE'
+<?php
+
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
+
+class MethodNotFoundError extends Error {
+
+	const MESSAGE = 'Method not found';
+	const CODE = -32601;
+
+	public function __construct($data = NULL) {
+		parent::__construct(self::MESSAGE, self::CODE, $data);
 	}
 
 }
@@ -521,7 +528,7 @@ SOURCE;
 		return $source;
 	}
 
-	public function generateMethodNotFoundClassSource() {
+	public function generateInvalidParamsErrorClassSource() {
 		$source = <<<'SOURCE'
 <?php
 
@@ -529,30 +536,13 @@ SOURCE;
 
 namespace JSONRPC;
 
-class MethodNotFound extends \Exception {
+class InvalidParamsError extends Error {
 
-	public function __construct(\Exception $previous = NULL) {
-		parent::__construct('Method not found', -32601, $previous);
-	}
+	const MESSAGE = 'Invalid params';
+	const CODE = -32602;
 
-}
-
-SOURCE;
-		return $source;
-	}
-
-	public function generateInvalidParamsClassSource() {
-		$source = <<<'SOURCE'
-<?php
-
-/*** DO NOT MANUALLY EDIT THIS FILE ***/
-
-namespace JSONRPC;
-
-class InvalidParams extends \Exception {
-
-	public function __construct(\Exception $previous = NULL) {
-		parent::__construct('Invalid params', -32602, $previous);
+	public function __construct($data = NULL) {
+		parent::__construct(self::MESSAGE, self::CODE, $data);
 	}
 
 }
@@ -570,10 +560,13 @@ SOURCE;
 
 namespace JSONRPC;
 
-class InternalError extends \Exception {
+class InternalError extends Error {
 
-	public function __construct(\Exception $previous = NULL) {
-		parent::__construct('Internal error' . ($previous == NULL ? '' : " => {$previous->getMessage()}"), -32603, $previous);
+	const MESSAGE = 'Internal error';
+	const CODE = -32603;
+
+	public function __construct($data = NULL) {
+		parent::__construct(self::MESSAGE, self::CODE, $data);
 	}
 
 }
@@ -590,10 +583,13 @@ SOURCE;
 
 namespace JSONRPC;
 
-class ServerError extends \Exception {
+class ServerError extends Error {
 
-	public function __construct($message = NULL, $code = NULL, \Exception $previous = NULL) {
-		parent::__construct(is_null($message) ? 'Server error' : $message, is_null($code) ? -32000 : $code, $previous);
+	const MESSAGE = 'Server error';
+	const CODE = -32000;
+
+	public function __construct($data = NULL) {
+		parent::__construct(self::MESSAGE, self::CODE, $data);
 	}
 
 }
@@ -602,7 +598,7 @@ SOURCE;
 		return $source;
 	}
 
-	public function generateInvalidProtocolBufferExceptionClassSource() {
+	public function generateInvalidResultErrorClassSource() {
 		$source = <<<'SOURCE'
 <?php
 
@@ -610,12 +606,13 @@ SOURCE;
 
 namespace JSONRPC;
 
-class InvalidProtocolBufferException extends \Exception {
+class InvalidResultError extends Error {
 
+	const MESSAGE = 'Invalid result';
 	const CODE = -32001;
 
-	public function __construct(\Exception $previous = NULL) {
-		parent::__construct('Invalid protocol buffer', self::CODE, $previous);
+	public function __construct($data = NULL) {
+		parent::__construct(self::MESSAGE, self::CODE, $data);
 	}
 
 }
@@ -624,7 +621,7 @@ SOURCE;
 		return $source;
 	}
 
-	public function generateUninitializedMessageExceptionClassSource() {
+	public function generateUninitializedMessageErrorClassSource() {
 		$source = <<<'SOURCE'
 <?php
 
@@ -632,23 +629,17 @@ SOURCE;
 
 namespace JSONRPC;
 
-class UninitializedMessageException extends \Exception {
+class UninitializedMessageError extends Error {
 
+	const MESSAGE = 'Uninitialized message';
 	const CODE = -32002;
 
-	protected $missingFields = NULL;
-
-	public function __construct($missingFields = NULL, \Exception $previous = NULL) {
-		parent::__construct('Uninitialized message', self::CODE, $previous);
-		$this->missingFields = $missingFields;
-	}
-
-	public function asInvalidProtocolBufferException() {
-		return new InvalidProtocolBufferException($this->getPrevious());
+	public function __construct($missingFields = NULL) {
+		parent::__construct(self::MESSAGE, self::CODE, $missingFields);
 	}
 
 	public function getMissingFields() {
-		return $this->missingFields;
+		return $this->getData();
 	}
 
 }

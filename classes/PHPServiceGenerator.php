@@ -122,12 +122,12 @@ abstract class Service {
 
 	protected function invoke($config, $client, $methodName, $_params = NULL) {
 		if (!array_key_exists($methodName, $this->methods)) {
-			throw new MethodNotFound();
+			throw new MethodNotFoundError();
 		}
 		$paramsTypeName = $this->methods[$methodName]['paramsTypeName'];
 		if (empty($paramsTypeName)) {
 			if ($_params !== NULL) {
-				throw new InvalidParams();
+				throw new InvalidParamsError();
 			}
 			$params = NULL;
 		} elseif ($paramsTypeName === 'float') {
@@ -140,11 +140,11 @@ abstract class Service {
 			$params = (string) $_params;
 		} else {
 			if (empty($_params)) {
-				throw new InvalidParams();
+				throw new InvalidParamsError();
 			}
 			$params = $paramsTypeName::fromStdClass($_params);
 			if (!$params->isInitialized()) {
-				throw new InvalidParams();
+				throw new InvalidParamsError(new UninitializedMessageError());
 			}
 		}
 		$methodClassName = $this->methods[$methodName]['methodClassName'];
@@ -152,11 +152,17 @@ abstract class Service {
 		if (!$method->authorize($params)) {
 			throw new InternalError(new \Exception("Not authorized"));
 		}
-		$_result = $method->invoke($params);
+		try {
+			$_result = $method->invoke($params);
+		} catch (Error $e) {
+			throw $e;
+		} catch (\Exception $e) {
+			throw new InternalError($e);
+		}
 		$resultTypeName = $this->methods[$methodName]['resultTypeName'];
 		if (empty($resultTypeName)) {
 			if ($_result !== NULL) {
-				throw new InvalidParams();
+				throw new InvalidResultError();
 			}
 			$result = NULL;
 		} elseif ($resultTypeName === 'float') {
@@ -169,10 +175,10 @@ abstract class Service {
 			$result = (string) $_result;
 		} else {
 			if (empty($_result)) {
-				throw new InvalidParams();
+				throw new InvalidResultError();
 			}
 			if (!$_result->isInitialized()) {
-				throw new InvalidParams();
+				throw new InvalidResultError(new UninitializedMessageError());
 			}
 			$result = $_result->toStdClass();
 		}
@@ -198,7 +204,7 @@ abstract class Service {
 			}
 			if (is_array($input)) {
 				if (empty($input)) {
-					throw new InvalidRequest();
+					throw new InvalidRequestError();
 				}
 				$responses = array();
 				foreach ($input as $object) {

@@ -16,6 +16,13 @@ class PHPServiceClientGenerator extends PHPGenerator {
 			echo "{$filepath}\n";
 		}
 		
+		$source = $this->generateServiceClientErrorClassSource();
+		$filepath = "{$path}/classes/JSONRPC/ServiceClientError.php";
+		$res = $this->output($filepath, $source);
+		if ($res) {
+			echo "{$filepath}\n";
+		}
+		
 		$source = $this->generateServiceClientBatchClassSource();
 		$filepath = "{$path}/classes/JSONRPC/ServiceClient_Batch.php";
 		$res = $this->output($filepath, $source);
@@ -105,13 +112,24 @@ abstract class ServiceClient {
 			array_push($requestHeaders, "{$header}: {$value}");
 		}
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $requestHeaders);
-		$response = json_decode(curl_exec($ch));
+		$_response = curl_exec($ch);
+		if ($_response === FALSE) {
+			throw new ServiceClientError(new Error(curl_error($ch), curl_errno($ch)));
+		}
+		$info = curl_getinfo($ch);
+		if ($info['http_code'] !== 200) {
+			throw new ServiceClientError(new Error('HTTP error', $info['http_code']));
+		}
+		$response = json_decode($_response);
 		curl_close($ch);
 		return $response;
 	}
 
 	protected function invoke($method, $params, $paramsTypeName, $resultTypeName) {
 		if (empty($paramsTypeName)) {
+			if ($params !== NULL) {
+				throw new InvlaidParamsError();
+			}
 			$_params = NULL;
 		} elseif ($paramsTypeName === 'float') {
 			$_params = (float) $params;
@@ -123,10 +141,10 @@ abstract class ServiceClient {
 			$_params = (string) $params;
 		} else {
 			if (empty($params)) {
-				throw new InvalidParams();
+				throw new InvalidParamsError();
 			}
 			if (!$params->isInitialized()) {
-				throw new InvalidParams();
+				throw new InvalidParamsError(new UninitializedMessageError());
 			}
 			$_params = $params->toStdClass();
 		}
@@ -136,11 +154,13 @@ abstract class ServiceClient {
 		$request->setId($this->getId());
 		$response = Response::fromStdClass($this->send($request->toStdClass()));
 		if ($response->hasError()) {
-			$error = $response->getError();
-			throw new \Exception($error->getMessage(), $error->getCode(), NULL);
+			throw $response->getError();
 		}
 		$result = $response->getResult();
 		if (empty($resultTypeName)) {
+			if ($result !== NULL) {
+				throw new InvalidResultError();
+			}
 			return NULL;
 		}
 		if ($resultTypeName === 'float') {
@@ -156,11 +176,11 @@ abstract class ServiceClient {
 			return (string) $result;
 		}
 		if (empty($result)) {
-			throw new InvalidProtocolBufferException();
+			throw new InvalidResultError();
 		}
 		$_result = $resultTypeName::fromStdClass($result);
 		if (!$_result->isInitialized()) {
-			throw new InvalidProtocolBufferException();
+			throw new InvalidResultError(new UninitializedMessageError());
 		}
 		return $_result;
 	}
@@ -199,6 +219,9 @@ class ServiceClient_Batch {
 
 	protected function addRequest($method, $params, $paramsTypeName, $resultTypeName) {
 		if (empty($paramsTypeName)) {
+			if ($params !== NULL) {
+				throw new InvalidParamsError();
+			}
 			$_params = NULL;
 		} elseif ($paramsTypeName === 'float') {
 			$_params = (float) $params;
@@ -210,10 +233,10 @@ class ServiceClient_Batch {
 			$_params = (string) $params;
 		} else {
 			if (empty($params)) {
-				throw new InvalidParams();
+				throw new InvalidParamsError();
 			}
 			if (!$params->isInitialized()) {
-				throw new InvalidParams();
+				throw new InvalidParamsError(new UninitializedMessageError());
 			}
 			$_params = $params->toStdClass();
 		}
@@ -251,6 +274,10 @@ class ServiceClient_Batch {
 	protected function setResult($id, $result) {
 		$resultTypeName = $this->request[$id]['resultTypeName'];
 		if (empty($resultTypeName)) {
+			if ($result !== NULL) {
+				$this->setError($id, new InvalidResultError());
+				return;
+			}
 			$this->result[$id] = NULL;
 			return;
 		}
@@ -271,12 +298,12 @@ class ServiceClient_Batch {
 			return;
 		}
 		if (empty($result)) {
-			$this->setError($id, Response_Error::fromException(new InvalidProtocolBufferException()));
+			$this->setError($id, new InvalidResultError());
 			return;
 		}
 		$_result = $resultTypeName::fromStdClass($result);
 		if (!$_result->isInitialized()) {
-			$this->setError($id, Response_Error::fromException(new InvalidProtocolBufferException()));
+			$this->setError($id, new InvalidResultError(new UninitializedMessageError()));
 			return;
 		}
 		$this->result[$id] = $_result;
@@ -328,6 +355,29 @@ class ServiceClient_Batch {
 		}
 		$this->clearRequest();
 		return $this;
+	}
+
+}
+
+SOURCE;
+		return $source;
+	}
+	
+	public function generateServiceClientErrorClassSource() {
+		$source = <<<'SOURCE'
+<?php
+
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
+
+class ServiceClientError extends Error {
+
+	const MESSAGE = 'Service client error';
+	const CODE = -32003;
+
+	public function __construct($data = NULL) {
+		parent::__construct(self::MESSAGE, self::CODE, $data);
 	}
 
 }
