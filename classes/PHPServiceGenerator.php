@@ -133,10 +133,12 @@ abstract class Service {
 		$this->authenticationClassName = $authenticationClassName;
 	}
 
-	public function registerMethod($methodName, $methodClassName, $paramsTypeName, $resultTypeName) {
+	public function registerMethod($methodName, $methodClassName, $paramsRule, $paramsTypeName, $resultRule, $resultTypeName) {
 		$this->methods[$methodName] = array(
 			'methodClassName' => $methodClassName,
+			'paramsRule' => $paramsRule,
 			'paramsTypeName' => $paramsTypeName,
+			'resultRule' => $resultRule,
 			'resultTypeName' => $resultTypeName,
 		);
 	}
@@ -145,6 +147,7 @@ abstract class Service {
 		if (!array_key_exists($methodName, $this->methods)) {
 			throw new MethodNotFoundError();
 		}
+		$paramsRule = $this->methods[$methodName]['paramsRule'];
 		$paramsTypeName = $this->methods[$methodName]['paramsTypeName'];
 		if (empty($paramsTypeName)) {
 			if ($_params !== NULL) {
@@ -180,6 +183,7 @@ abstract class Service {
 		} catch (\Exception $e) {
 			throw new ServerError($e);
 		}
+		$resultRule = $this->methods[$methodName]['resultRule'];
 		$resultTypeName = $this->methods[$methodName]['resultTypeName'];
 		if (empty($resultTypeName)) {
 			if ($_result !== NULL) {
@@ -575,40 +579,30 @@ SOURCE;
 	public function generateServiceMethodClassSource($service, $rpcName) {
 		$namespace = $this->getNamespace($service['package']);
 		$rpc = $service['rpcs'][$rpcName];
-		if (empty($rpc['type'])) {
-			$arg = '';
-		} else {
-			$typeType = Registry::getType($rpc['type']);
-			if ($typeType['type'] === Registry::PRIMITIVE) {
-				$arg = '$params';
-			} elseif ($typeType['type'] === Registry::ENUM) {
-				$arg = '$params';
-			} else {
-				$type = str_replace('.', '_', $typeType['name']);
-				if ($service['package'] !== $typeType['package']) {
-					$type = (empty($typeType['package']) ? '' : '\\' . $this->getNamespace($typeType['package'])) . '\\' . $type;
-				}
-				$arg = "{$type} \$params";
-			}
-		}
-		if (empty($rpc['returns'])) {
+		if (empty($rpc['returns']['type'])) {
 			$invoke = <<<SOURCE
 
 		return NULL;
 SOURCE;
 		} else {
-			$returnsType = Registry::getType($rpc['returns']);
-			if ($returnsType['type'] === Registry::PRIMITIVE) {
-				$type = $this->getType($returnsType['name']);
-				$result = $type['default'];
-			} elseif ($returnsType['type'] === Registry::ENUM) {
+			if ($rpc['returns']['rule'] === 'repeated') {
+				$result = "array()";
+			} elseif ($rpc['returns']['rule'] === 'optional') {
 				$result = 'NULL';
 			} else {
-				$returns = str_replace('.', '_', $returnsType['name']);
-				if ($service['package'] !== $returnsType['package']) {
-					$returns = (empty($returnsType['package']) ? '' : '\\' . $this->getNamespace($returnsType['package'])) . '\\' . $returns;
+				$returnsType = Registry::getType($rpc['returns']['type']);
+				if ($returnsType['type'] === Registry::PRIMITIVE) {
+					$type = $this->getType($returnsType['name']);
+					$result = $type['default'];
+				} elseif ($returnsType['type'] === Registry::ENUM) {
+					$result = '0';
+				} else {
+					$returns = str_replace('.', '_', $returnsType['name']);
+					if ($service['package'] !== $returnsType['package']) {
+						$returns = (empty($returnsType['package']) ? '' : '\\' . $this->getNamespace($returnsType['package'])) . '\\' . $returns;
+					}
+					$result = "new {$returns}()";
 				}
-				$result = "new {$returns}()";
 			}
 			$invoke = <<<SOURCE
 
@@ -692,10 +686,10 @@ SOURCE;
 						$typeValue = "'{$type}'";
 					}
 				}
-				if (empty($rpc['returns'])) {
+				if (empty($rpc['returns']['type'])) {
 					$returnsValue = 'NULL';
 				} else {
-					$returnsType = Registry::getType($rpc['returns']);
+					$returnsType = Registry::getType($rpc['returns']['type']);
 					if ($returnsType['type'] === Registry::PRIMITIVE) {
 						$type = $this->getType($returnsType['name']);
 						$returnsValue = "'{$type['type']}'";
@@ -709,7 +703,7 @@ SOURCE;
 				}
 				$source .= <<<SOURCE
 
-		\$this->registerMethod('{$rpcName}', '\\{$namespace}{$service['service']}_{$rpcName}', {$typeValue}, {$returnsValue});
+		\$this->registerMethod('{$rpcName}', '\\{$namespace}{$service['service']}_{$rpcName}', '{$rpc['rule']}', {$typeValue}, '{$rpc['returns']['rule']}', {$returnsValue});
 SOURCE;
 			}
 			$source .= "\n";

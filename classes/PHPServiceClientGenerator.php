@@ -131,7 +131,7 @@ abstract class ServiceClient {
 		return $response;
 	}
 
-	protected function invoke($method, $params, $paramsTypeName, $resultTypeName) {
+	protected function invoke($method, $params, $paramsRule, $paramsTypeName, $resultRule, $resultTypeName) {
 		if (empty($paramsTypeName)) {
 			if ($params !== NULL) {
 				throw new InvalidParamsError();
@@ -230,7 +230,7 @@ class ServiceClient_Batch {
 		return $this->serviceClient;
 	}
 
-	protected function addRequest($method, $params, $paramsTypeName, $resultTypeName) {
+	protected function addRequest($method, $params, $paramsRule, $paramsTypeName, $resultRule, $resultTypeName) {
 		if (empty($paramsTypeName)) {
 			if ($params !== NULL) {
 				throw new InvalidParamsError();
@@ -259,6 +259,7 @@ class ServiceClient_Batch {
 		$request->setId($this->serviceClient->getId());
 		$this->request[$this->serviceClient->getLastId()] = array(
 			'request' => $request,
+			'resultRule' => $resultRule,
 			'resultTypeName' => $resultTypeName,
 		);
 		return $this->serviceClient->getLastId();
@@ -285,6 +286,7 @@ class ServiceClient_Batch {
 	}
 
 	protected function setResult($id, $result) {
+		$resultRule = $this->request[$id]['resultRule'];
 		$resultTypeName = $this->request[$id]['resultTypeName'];
 		if (empty($resultTypeName)) {
 			if ($result !== NULL) {
@@ -469,12 +471,17 @@ SOURCE;
 						$arg = "{$type} \$params";
 						$params = '$params';
 					}
+					if ($rpc['rule'] === 'optional') {
+						$arg = "{$arg} = NULL";
+					} elseif ($rpc['rule'] === 'repeated') {
+						$arg = '$params';
+					}
 					$type = "'{$type}'";
 				}
-				if (empty($rpc['returns'])) {
+				if (empty($rpc['returns']['type'])) {
 					$returns = 'NULL';
 				} else {
-					$returnsType = Registry::getType($rpc['returns']);
+					$returnsType = Registry::getType($rpc['returns']['type']);
 					if ($returnsType['type'] === Registry::PRIMITIVE) {
 						$_type = $this->getType($returnsType['name']);
 						$returns = $_type['type'];
@@ -491,7 +498,7 @@ SOURCE;
 				$source .= <<<SOURCE
 
 	public function {$rpcName}({$arg}) {
-		return \$this->invoke('{$rpcName}', {$params}, {$type}, {$returns});
+		return \$this->invoke('{$rpcName}', {$params}, '{$rpc['rule']}', {$type}, '{$rpc['returns']['rule']}', {$returns});
 	}
 
 SOURCE;
@@ -554,12 +561,17 @@ SOURCE;
 						$arg = "{$type} \$params";
 						$params = '$params';
 					}
+					if ($rpc['rule'] === 'optional') {
+						$arg = "{$arg} = NULL";
+					} elseif ($rpc['rule'] === 'repeated') {
+						$arg = '$params';
+					}
 					$type = "'$type'";
 				}
-				if (empty($rpc['returns'])) {
+				if (empty($rpc['returns']['type'])) {
 					$returns = "NULL";
 				} else {
-					$returnsType = Registry::getType($rpc['returns']);
+					$returnsType = Registry::getType($rpc['returns']['type']);
 					if ($returnsType['type'] === Registry::PRIMITIVE) {
 						$_type = $this->getType($returnsType['name']);
 						$returns = "{$_type['type']}";
@@ -574,7 +586,7 @@ SOURCE;
 				$source .= <<<SOURCE
 
 	public function {$rpcName}({$arg}) {
-		return \$this->addRequest('{$rpcName}', {$params}, {$type}, {$returns});
+		return \$this->addRequest('{$rpcName}', {$params}, '{$rpc['rule']}', {$type}, '{$rpc['returns']['rule']}', {$returns});
 	}
 
 SOURCE;

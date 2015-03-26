@@ -442,22 +442,6 @@ var JSONRPC = (function($this) {
 
 	$this.InvalidResultError = InvalidResultError;
 
-	var defaultErrorHandler = function(error) {
-		console.log('******** [ERROR] (' + error.getCode() + ') ' + error.getMessage());
-		if (error.hasData()) {
-			var data = error.getData();
-			if (typeof data === 'object') {
-				for (var index in data) {
-					console.log('******** ' + index + ': ' + data[index]);
-				}
-			} else {
-				console.log('******** ' + data);
-			}
-		}
-	};
-
-	$this.defaultErrorHandler = defaultErrorHandler;
-
 	var ServiceClient = function(_url) {
 
 		var url = _url;
@@ -523,13 +507,15 @@ var JSONRPC = (function($this) {
 			xhr.send(JSON.stringify(request));
 		}
 
-		this.invoke = function(method, params, paramsType, resultType, resultHandler, errorHandler) {
+		this.invoke = function(method, params, paramsRule, paramsType, resultRule, resultType, resultHandler, errorHandler) {
 			if (typeof resultHandler === 'undefined') {
 				resultHandler = function(result) {
 				};
 			}
 			if (typeof errorHandler === 'undefined') {
-				errorHandler = defaultErrorHandler;
+				errorHandler = function(error) {
+					throw error;
+				};
 			}
 			var _params;
 			if (paramsType === null) {
@@ -640,9 +626,11 @@ var JSONRPC = (function($this) {
 			return serviceClient;
 		};
 
-		this.addRequest = function(method, params, paramsType, resultType, errorHandler) {
+		this.addRequest = function(method, params, paramsRule, paramsType, resultRule, resultType, errorHandler) {
 			if (typeof errorHandler === 'undefined') {
-				errorHandler = defaultErrorHandler;
+				errorHandler = function(error) {
+					throw error;
+				};
 			}
 			var _params;
 			if (paramsType === null) {
@@ -686,6 +674,7 @@ var JSONRPC = (function($this) {
 			_request.setId(serviceClient.getId());
 			request[serviceClient.getLastId()] = {
 				request: _request,
+				resultRule: resultRule,
 				resultType: resultType
 			};
 			return serviceClient.getLastId();
@@ -712,6 +701,7 @@ var JSONRPC = (function($this) {
 		};
 
 		this.setResult = function(id, _result) {
+			var resultRule = request[id].resultRule;
 			var resultType = request[id].resultType;
 			if (resultType === null) {
 				if (_result !== null) {
@@ -775,13 +765,15 @@ var JSONRPC = (function($this) {
 			error = [];
 		};
 
-		this.send = function(handler, errorHandler) {
-			if (typeof handler === 'undefined') {
-				handler = function(batch) {
+		this.send = function(batchHandler, errorHandler) {
+			if (typeof batchHandler === 'undefined') {
+				batchHandler = function(batch) {
 				};
 			}
 			if (typeof errorHandler === 'undefined') {
-				errorHandler = defaultErrorHandler;
+				errorHandler = function(error) {
+					throw error;
+				};
 			}
 			var requests = [];
 			for (var index in request) {
@@ -800,7 +792,7 @@ var JSONRPC = (function($this) {
 					}
 				}
 				$this.clearRequest();
-				handler($this);
+				batchHandler($this);
 			}, errorHandler);
 		};
 
@@ -1171,10 +1163,10 @@ SOURCE;
 				$arg = 'params, ';
 				$params = 'params';
 			}
-			if (empty($rpc['returns'])) {
+			if (empty($rpc['returns']['type'])) {
 				$returns = 'null';
 			} else {
-				$returnsType = Registry::getType($rpc['returns']);
+				$returnsType = Registry::getType($rpc['returns']['type']);
 				if ($returnsType['type'] === Registry::PRIMITIVE) {
 					$_type = $this->getType($returnsType['name']);
 					$returns = "'{$_type['type']}'";
@@ -1186,7 +1178,7 @@ SOURCE;
 			}
 			$source .= <<<SOURCE
 		this.{$rpcName} = function({$arg}resultHandler, errorHandler) {
-			this.invoke('$rpcName', {$params}, {$type}, {$returns}, resultHandler, errorHandler);
+			this.invoke('$rpcName', {$params}, '{$rpc['rule']}', {$type}, '{$rpc['returns']['rule']}', {$returns}, resultHandler, errorHandler);
 		};
 
 
@@ -1228,13 +1220,13 @@ SOURCE;
 				} else {
 					$type = ($typeType['package'] === $service['package'] ? '' : (empty($typeType['package']) ? '' : "{$typeType['package']}.")) . $typeType['name'];
 				}
-				$arg = 'params';
+				$arg = 'params, ';
 				$params = 'params';
 			}
-			if (empty($rpc['returns'])) {
+			if (empty($rpc['returns']['type'])) {
 				$returns = 'null';
 			} else {
-				$returnsType = Registry::getType($rpc['returns']);
+				$returnsType = Registry::getType($rpc['returns']['type']);
 				if ($returnsType['type'] === Registry::PRIMITIVE) {
 					$_type = $this->getType($returnsType['name']);
 					$returns = "'{$_type['type']}'";
@@ -1245,8 +1237,8 @@ SOURCE;
 				}
 			}
 			$source .= <<<SOURCE
-		this.{$rpcName} = function({$arg}) {
-			return this.addRequest('$rpcName', {$params}, {$type}, {$returns});
+		this.{$rpcName} = function({$arg}errorHandler) {
+			return this.addRequest('$rpcName', {$params}, '{$rpc['rule']}', {$type}, '{$rpc['returns']['rule']}', {$returns}, errorHandler);
 		};
 
 
