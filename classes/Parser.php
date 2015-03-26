@@ -553,8 +553,18 @@ class Parser {
 			throw new Exception("[{$this->getFile()}] Unexpected EOF");
 		}
 		if ($token->getType() === Lexer::CLOSING_PARENTHESIS) {
+			$rule = 'required';
 			$type = NULL;
 		} else {
+			if ($token->getType() === Lexer::KEYWORD && ($token->getText() === 'required' || $token->getText() === 'optional' || $token->getText() === 'repeated')) {
+				$rule = $token->getText();
+				$token = $this->getNextToken();
+				if (empty($token)) {
+					throw new Exception("[{$this->getFile()}] Unexpected EOF");
+				}
+			} else {
+				$rule = 'required';
+			}
 			$type = $this->getType($token->getText());
 			$this->getNextToken(Lexer::CLOSING_PARENTHESIS);
 		}
@@ -568,9 +578,19 @@ class Parser {
 			throw new Exception("[{$this->getFile()}] Unexpected EOF");
 		}
 		if ($token->getType() === Lexer::CLOSING_PARENTHESIS) {
-			$returns = NULL;
+			$returnsRule = 'required';
+			$returnsType = NULL;
 		} else {
-			$returns = $this->getType($token->getText());
+			if ($token->getType() === Lexer::KEYWORD && ($token->getText() === 'required' || $token->getText() === 'optional' || $token->getText() === 'repeated')) {
+				$returnsRule = $token->getText();
+				$token = $this->getNextToken();
+				if (empty($token)) {
+					throw new Exception("[{$this->getFile()}] Unexpected EOF");
+				}
+			} else {
+				$returnsRule = 'required';
+			}
+			$returnsType = $this->getType($token->getText());
 			$this->getNextToken(Lexer::CLOSING_PARENTHESIS);
 		}
 		$token = $this->getNextToken();
@@ -609,8 +629,12 @@ class Parser {
 		}
 		if ($this->getPublic()) {
 			$this->proto['services'][(empty($this->currentPackage) ? '' : "{$this->currentPackage}.") . $service]['rpcs'][$rpc] = array(
-				'type' => (empty($type['package']) ? '' : "{$type['package']}.") . $type['name'],
-				'returns' => (empty($returns['package']) ? '' : "{$returns['package']}.") . $returns['name'],
+				'rule' => $rule,
+				'type' => empty($type) ? NULL : ((empty($type['package']) ? '' : "{$type['package']}.") . $type['name']),
+				'returns' => array(
+					'rule' => $returnsRule,
+					'type' => empty($returnsType) ? NULL : ((empty($returnsType['package']) ? '' : "{$returnsType['package']}.") . $returnsType['name']),
+				),
 				'options' => $options,
 			);
 		}
