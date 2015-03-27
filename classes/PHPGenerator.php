@@ -211,7 +211,7 @@ class Request {
 	}
 
 	public function hasParams() {
-		return NULL != $this->params;
+		return NULL !== $this->params;
 	}
 
 	public function getParams() {

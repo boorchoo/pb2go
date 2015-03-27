@@ -143,69 +143,38 @@ abstract class Service {
 		);
 	}
 
-	protected function invoke($config, $client, $methodName, $_params = NULL) {
+	protected function invoke($config, $client, $methodName, $params = NULL) {
 		if (!array_key_exists($methodName, $this->methods)) {
 			throw new MethodNotFoundError();
 		}
-		$paramsRule = $this->methods[$methodName]['paramsRule'];
-		$paramsTypeName = $this->methods[$methodName]['paramsTypeName'];
-		if (empty($paramsTypeName)) {
-			if ($_params !== NULL) {
-				throw new InvalidParamsError();
-			}
-			$params = NULL;
-		} elseif ($paramsTypeName === 'float') {
-			$params = (float) $_params;
-		} elseif ($paramsTypeName === 'int') {
-			$params = (int) $_params;
-		} elseif ($paramsTypeName === 'bool') {
-			$params = (bool) $_params;
-		} elseif ($paramsTypeName === 'string') {
-			$params = (string) $_params;
-		} else {
-			if (empty($_params)) {
-				throw new InvalidParamsError();
-			}
-			$params = $paramsTypeName::fromStdClass($_params);
-			if (!$params->isInitialized()) {
-				throw new InvalidParamsError(new UninitializedMessageError());
-			}
+		try {
+			$params = self::validateParams($this->methods[$methodName]['paramsRule'], $this->methods[$methodName]['paramsTypeName'], $params);
+		} catch (InternalError $e) {
+			throw $e;
+		} catch (\Exception $e) {
+			throw new InvalidParamsError($e);
 		}
 		$methodClassName = $this->methods[$methodName]['methodClassName'];
+		if (!class_exists($methodClassName)) {
+			throw new InternalError(new \Exception("Class {$methodClassName} doesn't exist"));
+		}
 		$method = new $methodClassName($config, $client);
 		if (!$method->authorize($params)) {
 			throw new InternalError(new \Exception("Not authorized"));
 		}
 		try {
-			$_result = $method->invoke($params);
+			$result = $method->invoke($params);
 		} catch (Error $e) {
 			throw $e;
 		} catch (\Exception $e) {
 			throw new ServerError($e);
 		}
-		$resultRule = $this->methods[$methodName]['resultRule'];
-		$resultTypeName = $this->methods[$methodName]['resultTypeName'];
-		if (empty($resultTypeName)) {
-			if ($_result !== NULL) {
-				throw new InvalidResultError();
-			}
-			$result = NULL;
-		} elseif ($resultTypeName === 'float') {
-			$result = (float) $_result;
-		} elseif ($resultTypeName === 'int') {
-			$result = (int) $_result;
-		} elseif ($resultTypeName === 'bool') {
-			$result = (bool) $_result;
-		} elseif ($resultTypeName === 'string') {
-			$result = (string) $_result;
-		} else {
-			if (empty($_result)) {
-				throw new InvalidResultError();
-			}
-			if (!$_result->isInitialized()) {
-				throw new InvalidResultError(new UninitializedMessageError());
-			}
-			$result = $_result->toStdClass();
+		try {
+			$result = self::validateResult($this->methods[$methodName]['resultRule'], $this->methods[$methodName]['resultTypeName'], $result);
+		} catch (InternalError $e) {
+			throw $e;
+		} catch (\Exception $e) {
+			throw new InvalidResultError($e);
 		}
 		return $result;
 	}
@@ -289,6 +258,145 @@ abstract class Service {
 			}
 			die();
 		}
+	}
+
+	static function validateParams($rule, $typeName, $value) {
+		switch ($rule) {
+			case 'repeated':
+				if (!is_array($value)) {
+					throw new \Exception('Value must be an array');
+				}
+				$params = array();
+				foreach ($value as $item) {
+					array_push($params, self::validateParams('required', $typeName, $item));
+				}
+				break;
+			case 'optional':
+				if ($value === NULL) {
+					$params = NULL;
+					break;
+				}
+			case 'required':
+				if ($typeName === NULL) {
+					if ($value !== NULL) {
+						throw new \Exception('Value must be null');
+					}
+					$params = NULL;
+					break;
+				}
+				if ($value === NULL) {
+					throw new \Exception('Value must not be null');
+				}
+				switch ($typeName) {
+					case 'float':
+						if (!is_numeric($value)) {
+							throw new \Exception('Value must be a number or a numeric string');
+						}
+						$params = (float) $value;
+						break;
+					case 'int':
+						if (!is_numeric($value)) {
+							throw new \Exception('Value must be a number or a numeric string');
+						}
+						$params = (int) $value;
+						break;
+					case 'bool':
+						$params = (bool) $value;
+						break;
+					case 'string':
+						if (!is_string($value)) {
+							throw new \Exception('Value must be a string');
+						}
+						$params = $value;
+						break;
+					default:
+						if (!is_object($value)) {
+							throw new \Exception('Value must be an object');
+						}
+						if (!is_a($value, '\stdClass')) {
+							throw new \Exception("Value must be an instance of class \stdClass");
+						}
+						if (!class_exists($typeName)) {
+							throw new InternalError(new Exception("Class {$typeName} doesn't exist"));
+						}
+						$params = $typeName::fromStdClass($value);
+						if (!$params->isInitialized()) {
+							throw new UninitializedMessageError();
+						}
+				}
+				break;
+			default:
+				throw new \Exception('Invalid rule');
+		}
+		return $params;
+	}
+
+	static function validateResult($rule, $typeName, $value) {
+		switch ($rule) {
+			case 'repeated':
+				if (!is_array($value)) {
+					throw new \Exception('Value must be an array');
+				}
+				$result = array();
+				foreach ($value as $item) {
+					array_push($result, self::validateResult('required', $typeName, $item));
+				}
+				break;
+			case 'optional':
+				if ($value === NULL) {
+					$result = NULL;
+					break;
+				}
+			case 'required':
+				if ($typeName === NULL) {
+					if ($value !== NULL) {
+						throw new \Exception('Value must be null');
+					}
+					$result = NULL;
+					break;
+				}
+				if ($value === NULL) {
+					throw new \Exception('Value must not be null');
+				}
+				switch ($typeName) {
+					case 'float':
+						if (!is_numeric($value)) {
+							throw new \Exception('Value must be a number or a numeric string');
+						}
+						$result = (float) $value;
+						break;
+					case 'int':
+						if (!is_numeric($value)) {
+							throw new \Exception('Value must be a number or a numeric string');
+						}
+						$result = (int) $value;
+						break;
+					case 'bool':
+						$result = (bool) $value;
+						break;
+					case 'string':
+						if (!is_string($value)) {
+							throw new \Exception('Value must be a string');
+						}
+						$result = $value;
+						break;
+					default:
+						if (!is_object($value)) {
+							throw new \Exception('Value must be an object');
+						}
+						if (!is_a($value, $typeName)) {
+							throw new \Exception("Value must be an instance of class {$typeName}");
+						}
+						if (!$value->isInitialized()) {
+							throw new UninitializedMessageError();
+						}
+						$result = $value->toStdClass();
+				}
+				break;
+			default:
+				throw new \Exception('Invalid rule');
+		}
+		return $result;
 	}
 
 }
