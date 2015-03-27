@@ -518,7 +518,7 @@ namespace JSONRPC;
 class InvalidResultError extends Error {
 
 	const MESSAGE = 'Invalid result';
-	const CODE = -32001;
+	const CODE = -32002;
 
 	public function __construct($data = NULL) {
 		parent::__construct(self::MESSAGE, self::CODE, $data);
@@ -541,7 +541,7 @@ namespace JSONRPC;
 class UninitializedMessageError extends Error {
 
 	const MESSAGE = 'Uninitialized message';
-	const CODE = -32002;
+	const CODE = -32003;
 
 	public function __construct($missingFields = NULL) {
 		parent::__construct(self::MESSAGE, self::CODE, $missingFields);

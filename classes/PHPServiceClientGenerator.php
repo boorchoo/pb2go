@@ -16,6 +16,13 @@ class PHPServiceClientGenerator extends PHPGenerator {
 			echo "{$filepath}\n";
 		}
 		
+		$source = $this->generateInvalidResponseErrorClassSource();
+		$filepath = "{$path}/classes/JSONRPC/InvalidResponseError.php";
+		$res = $this->output($filepath, $source);
+		if ($res) {
+			echo "{$filepath}\n";
+		}
+		
 		$source = $this->generateServiceClientErrorClassSource();
 		$filepath = "{$path}/classes/JSONRPC/ServiceClientError.php";
 		$res = $this->output($filepath, $source);
@@ -148,7 +155,7 @@ abstract class ServiceClient {
 			return NULL;
 		}
 		if (!is_object($object)) {
-			throw new InvalidResultError();
+			throw new InvalidResponseError();
 		}
 		$response = Response::fromStdClass($object);
 		if ($response->hasError()) {
@@ -430,17 +437,17 @@ class ServiceClient_Batch {
 		}
 		if (!is_array($objects)) {
 			if (!is_object($objects)) {
-				throw new InvalidResultError();
+				throw new InvalidResponseError();
 			}
 			$response = Response::fromStdClass($objects);
 			if ($response->hasError()) {
 				throw $response->getError();
 			}
-			throw new InvalidResultError();
+			throw new InvalidResponseError();
 		}
 		foreach ($objects as $object) {
 			if (!is_object($object)) {
-				$this->setError($response->getId(), new InvalidResultError());
+				$this->setError(NULL, new InvalidResponseError());
 				continue;
 			}
 			$response = Response::fromStdClass($object);
@@ -451,6 +458,29 @@ class ServiceClient_Batch {
 			$this->setResult($response->getId(), $response->getResult());
 		}
 		$this->clearRequest();
+	}
+
+}
+
+SOURCE;
+		return $source;
+	}
+	
+	public function generateInvalidResponseErrorClassSource() {
+		$source = <<<'SOURCE'
+<?php
+
+/*** DO NOT MANUALLY EDIT THIS FILE ***/
+
+namespace JSONRPC;
+
+class InvalidResponseError extends Error {
+
+	const MESSAGE = 'Invalid Response';
+	const CODE = -32001;
+
+	public function __construct($data = NULL) {
+		parent::__construct(self::MESSAGE, self::CODE, $data);
 	}
 
 }
@@ -470,7 +500,7 @@ namespace JSONRPC;
 class ServiceClientError extends Error {
 
 	const MESSAGE = 'Service client error';
-	const CODE = -32003;
+	const CODE = -32004;
 
 	public function __construct($data = NULL) {
 		parent::__construct(self::MESSAGE, self::CODE, $data);

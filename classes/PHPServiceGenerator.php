@@ -648,7 +648,7 @@ namespace JSONRPC;
 
 class InvalidRequestError extends Error {
 
-	const MESSAGE = 'Invalid request';
+	const MESSAGE = 'Invalid Request';
 	const CODE = -32600;
 
 	public function __construct($data = NULL) {
