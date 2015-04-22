@@ -1253,16 +1253,57 @@ SOURCE;
 	}
 
 	public function generateHTMLSource() {
+		$proto = json_encode($this->proto);
 		$source = <<<SOURCE
 <!DOCTYPE html>
 <!-- DO NOT MANUALLY EDIT THIS FILE -->
-<html>
+<html ng-app="app">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <title>{$this->fileName}</title>
+    <style type="text/css">
+    body {
+      font-size: 22px;
+      font-family: Arial;
+    }
+    .identifier {
+      font-style: italic;
+      color: green; 
+    }
+    .method {
+      color: blue;     
+    }
+    .service-title {
+      background: gray;
+      color: white;
+      padding: 8px;
+      font-size: 24px;
+    }
+    .service-methods {
+      padding-top: 8px;
+      margin-bottom: 32px;
+    }
+    .service-method {
+      padding: 8px;
+    }
+    </style>
     <script type="text/javascript" src="js/{$this->fileName}.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.15/angular.min.js"></script>
+    <script type="text/javascript">
+    angular.module('app', []).controller('AppController', function(\$scope) {
+        \$scope.proto = {$proto};
+    });
+    </script>
   </head>
-  <body>
+  <body ng-controller="AppController">
+    <div ng-repeat="service in proto.services">
+      <div class="service-title identifier">{{service.service}}</div>
+      <div class="service-methods">
+        <div class="service-method" ng-repeat="(rpcName, rpc) in service.rpcs">
+          <span class="identifier method">{{rpcName}}</span> (<span ng-if="rpc.type">{{rpc.rule}} <span class="identifier">{{rpc.type}}</span></span>) returns (<span ng-if="rpc.returns.type">{{rpc.returns.rule}} <span class="identifier">{{rpc.returns.type}}</span></span>)
+        </div>
+      </div>
+    </div>
   </body>
 </html>
 SOURCE;
