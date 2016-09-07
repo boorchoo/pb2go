@@ -180,6 +180,10 @@ abstract class Service {
 	}
 
 	public function run() {
+		header('Access-Control-Allow-Origin: *');
+		header('Access-Control-Allow-Methods: POST');
+		header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept');
+
 		$jsonp = filter_input(INPUT_GET, 'jsonp');
 		try {
 			if (empty($this->configurationClassName)) {

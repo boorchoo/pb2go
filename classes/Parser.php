@@ -689,7 +689,7 @@ class Parser {
 		$this->getNextToken(Lexer::EQUALS);
 		$token = $this->getNextToken();
 		if (empty($token)) {
-			break;
+			return;
 		}
 		$value = $token->getText();
 		//TODO: Check if $value is valid value for option
